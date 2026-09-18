@@ -241,17 +241,28 @@ export default function AddListingForm({ categories }: { categories: Category[] 
           evidence for that review, not a guarantee of quality or quantity.
         </p>
 
-        <label className="btn-secondary text-center cursor-pointer">
-          Take photo or choose from gallery
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            multiple
-            className="hidden"
-            onChange={handlePhotoSelect}
-          />
-        </label>
+        <div className="grid grid-cols-2 gap-2">
+          <label className="btn-secondary text-center cursor-pointer">
+            Take photo
+            <input
+              type="file"
+              accept="image/*"
+              capture="environment"
+              className="hidden"
+              onChange={handlePhotoSelect}
+            />
+          </label>
+          <label className="btn-secondary text-center cursor-pointer">
+            Choose from gallery
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handlePhotoSelect}
+            />
+          </label>
+        </div>
 
         <p className={`text-sm font-medium ${photos.length >= MIN_PHOTOS ? "text-field" : "text-alert"}`}>
           {photos.length} / {MIN_PHOTOS} photos added

@@ -120,18 +120,30 @@ export default function PackingEvidenceUploader({
         different angles, the packaging, and a weighing scale if you have one.
       </p>
 
-      <label className="btn-secondary text-center cursor-pointer">
-        Take photo or choose from gallery
-        <input
-          type="file"
-          accept="image/*"
-          capture="environment"
-          multiple
-          className="hidden"
-          onChange={handleSelect}
-          disabled={uploading}
-        />
-      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="btn-secondary text-center cursor-pointer">
+          Take photo
+          <input
+            type="file"
+            accept="image/*"
+            capture="environment"
+            className="hidden"
+            onChange={handleSelect}
+            disabled={uploading}
+          />
+        </label>
+        <label className="btn-secondary text-center cursor-pointer">
+          Choose from gallery
+          <input
+            type="file"
+            accept="image/*"
+            multiple
+            className="hidden"
+            onChange={handleSelect}
+            disabled={uploading}
+          />
+        </label>
+      </div>
 
       <p className={`text-sm font-medium ${totalCount >= MIN_PHOTOS ? "text-field" : "text-alert"}`}>
         {progressText || `${totalCount} / ${MIN_PHOTOS} photos uploaded`}

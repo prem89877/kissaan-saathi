@@ -103,10 +103,16 @@ export default function DisputeForm({ orderId, onCancel }: { orderId: string; on
         <textarea className="input-field mt-1 min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
 
-      <label className="btn-secondary text-center cursor-pointer">
-        Add photos (optional evidence)
-        <input type="file" accept="image/*" capture="environment" multiple className="hidden" onChange={handlePhotoSelect} />
-      </label>
+      <div className="grid grid-cols-2 gap-2">
+        <label className="btn-secondary text-center cursor-pointer">
+          Take photo
+          <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoSelect} />
+        </label>
+        <label className="btn-secondary text-center cursor-pointer">
+          Choose from gallery
+          <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
+        </label>
+      </div>
       {photos.length > 0 && <p className="text-soil/60 text-sm">{photos.length} photo(s) attached</p>}
 
       <div className="flex gap-2">
