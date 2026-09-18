@@ -16,6 +16,7 @@ const en = {
   "nav.disputes": "Disputes",
   "nav.farmers": "Farmers",
   "nav.buyers": "Buyers",
+  "nav.settlements": "Payouts",
 
   // Common
   "common.logIn": "Log in",
@@ -107,6 +108,7 @@ const mr: Record<keyof typeof en, string> = {
   "nav.disputes": "तक्रारी",
   "nav.farmers": "शेतकरी",
   "nav.buyers": "खरेदीदार",
+  "nav.settlements": "पेमेंट",
 
   "common.logIn": "लॉग इन करा",
   "common.logOut": "लॉग आउट करा",

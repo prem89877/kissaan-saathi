@@ -11,7 +11,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: "/admin/listings", label: t("nav.listings") },
     { href: "/admin/orders", label: t("nav.orders") },
     { href: "/admin/disputes", label: t("nav.disputes") },
-    { href: "/admin/farmers", label: t("nav.farmers") },
+    { href: "/admin/settlements", label: t("nav.settlements") },
   ];
 
   return (
