@@ -30,7 +30,6 @@ export default function AddListingForm({ categories }: { categories: Category[] 
     harvestDate: "",
     shelfLifeDays: "",
     deliveryRadiusKm: "",
-    deliveryCostEstimate: "",
   });
 
   const [photos, setPhotos] = useState<{ file: File; hash: string; preview: string }[]>([]);
@@ -134,7 +133,6 @@ export default function AddListingForm({ categories }: { categories: Category[] 
         harvest_date: form.harvestDate || null,
         shelf_life_days: form.shelfLifeDays ? parseInt(form.shelfLifeDays, 10) : null,
         delivery_radius_km: form.deliveryRadiusKm ? parseFloat(form.deliveryRadiusKm) : null,
-        delivery_cost_estimate: form.deliveryCostEstimate ? parseFloat(form.deliveryCostEstimate) : null,
       })
       .select("id")
       .single();
@@ -230,7 +228,9 @@ export default function AddListingForm({ categories }: { categories: Category[] 
       <section className="flex flex-col gap-4">
         <h2 className="font-medium text-field">Delivery</h2>
         <input type="number" min="0" step="0.1" placeholder="Maximum delivery radius (km)" className="input-field" value={form.deliveryRadiusKm} onChange={update("deliveryRadiusKm")} />
-        <input type="number" min="0" step="1" placeholder="Estimated delivery cost (₹)" className="input-field" value={form.deliveryCostEstimate} onChange={update("deliveryCostEstimate")} />
+        <p className="text-soil/60 text-sm">
+          Delivery is handled by Kissaan Saathi Delivery — the cost is calculated automatically from distance and weight, you don't need to estimate it.
+        </p>
       </section>
 
       <section className="flex flex-col gap-4">

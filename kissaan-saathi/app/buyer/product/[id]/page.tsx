@@ -11,7 +11,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   const { data: listing } = await supabase
     .from("product_listings")
     .select(
-      "id, name, price_per_kg, available_qty, moq, grade, quality_description, harvest_date, shelf_life_days, delivery_radius_km, delivery_cost_estimate, admin_reviewed, farmer_id, categories(name)"
+      "id, name, price_per_kg, available_qty, moq, grade, quality_description, harvest_date, shelf_life_days, delivery_radius_km, admin_reviewed, farmer_id, categories(name)"
     )
     .eq("id", params.id)
     .eq("status", "approved")

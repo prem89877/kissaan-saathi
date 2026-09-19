@@ -16,7 +16,7 @@ export default async function AdminListingDetailPage({ params }: { params: { id:
   const { data: listing } = await supabase
     .from("product_listings")
     .select(
-      "id, name, price_per_kg, available_qty, moq, grade, quality_description, harvest_date, shelf_life_days, delivery_radius_km, delivery_cost_estimate, status, admin_reviewed, rejection_reason, farmer_id, categories(name)"
+      "id, name, price_per_kg, available_qty, moq, grade, quality_description, harvest_date, shelf_life_days, delivery_radius_km, status, admin_reviewed, rejection_reason, farmer_id, categories(name)"
     )
     .eq("id", params.id)
     .single();
@@ -73,7 +73,7 @@ export default async function AdminListingDetailPage({ params }: { params: { id:
       <section className="card">
         <h2 className="font-medium text-field mb-2">Delivery</h2>
         <p>Radius: {listing.delivery_radius_km ? `${listing.delivery_radius_km} km` : "—"}</p>
-        <p>Estimated cost: {listing.delivery_cost_estimate ? `₹${listing.delivery_cost_estimate}` : "—"}</p>
+        <p className="text-soil/60 text-sm mt-1">Delivered via Kissaan Saathi Delivery — cost is calculated automatically, not farmer-entered.</p>
       </section>
 
       <section className="card">

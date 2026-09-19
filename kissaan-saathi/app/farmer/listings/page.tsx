@@ -58,6 +58,11 @@ export default async function FarmerListingsPage() {
                 {l.rejection_reason && (
                   <p className="text-alert text-xs mt-1">Reason: {l.rejection_reason}</p>
                 )}
+                {(l.product_images?.length ?? 0) < 10 && l.status !== "approved" && (
+                  <Link href={`/farmer/listings/${l.id}/edit-photos`} className="text-field underline text-xs mt-1 inline-block">
+                    Add photos ({l.product_images?.length ?? 0}/10)
+                  </Link>
+                )}
               </div>
             </div>
           );
