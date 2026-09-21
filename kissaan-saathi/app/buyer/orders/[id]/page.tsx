@@ -136,9 +136,14 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
           buyerEmail={buyerProfile?.email}
         />
       )}
+      {order.payment_method === "online" && order.status === "agreed" && (
+        <p className="text-soil/60 text-xs text-center -mt-2">
+          Paying confirms and places your order — no separate confirmation step needed.
+        </p>
+      )}
 
-      {order.status === "agreed" && (
-        <OrderStatusButton orderId={order.id} targetStatus="order_placed" label={`Confirm & place order — ₹${order.buyer_total}`} />
+      {order.payment_method === "cod" && order.status === "agreed" && (
+        <OrderStatusButton orderId={order.id} targetStatus="order_placed" label="Confirm & place order (Cash on Delivery)" />
       )}
 
       {(order.status === "agreed" || order.status === "order_placed") && (

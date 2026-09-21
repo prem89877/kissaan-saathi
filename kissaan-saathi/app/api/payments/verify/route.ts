@@ -18,7 +18,7 @@ export async function POST(request: Request) {
 
     const { data: order, error: orderError } = await supabase
       .from("orders")
-      .select("id, buyer_id, buyer_total, razorpay_order_id")
+      .select("id, buyer_id, buyer_total, razorpay_order_id, status")
       .eq("id", orderId)
       .single();
 
@@ -68,6 +68,14 @@ export async function POST(request: Request) {
       type: "buyer_charge",
       status: "settled",
     });
+
+    // A confirmed online payment IS the buyer's confirmation of the order —
+    // no separate "Confirm & Place Order" click needed after this. Only
+    // moves it forward if it's still sitting at 'agreed'; harmless no-op
+    // otherwise (e.g. a retried verification call).
+    if (order.status === "agreed") {
+      await service.from("orders").update({ status: "order_placed" }).eq("id", order.id);
+    }
 
     return NextResponse.json({ success: true });
   } catch (err) {
