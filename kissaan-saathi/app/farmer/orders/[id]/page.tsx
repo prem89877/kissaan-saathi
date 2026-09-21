@@ -147,7 +147,7 @@ export default async function FarmerOrderDetailPage({ params }: { params: { id: 
         <OrderStatusButton
           orderId={order.id}
           targetStatus="out_for_delivery"
-          label={order.delivery_mode === "pickup" ? "Mark ready for pickup" : "Mark out for delivery"}
+          label={order.delivery_mode === "pickup" ? "Mark ready for pickup" : "Ready for Pickup (notify delivery partner)"}
         />
       )}
 
@@ -155,7 +155,7 @@ export default async function FarmerOrderDetailPage({ params }: { params: { id: 
         <p className="text-soil/70 text-sm">
           {order.delivery_mode === "pickup"
             ? "Waiting for the buyer to come collect and confirm pickup."
-            : "Waiting for the buyer to confirm delivery via Kissaan Saathi Delivery."}
+            : "Visible to Kissaan Saathi delivery partners now — waiting for one to accept and pick it up."}
         </p>
       )}
 
