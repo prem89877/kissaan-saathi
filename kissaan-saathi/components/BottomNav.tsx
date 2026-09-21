@@ -9,7 +9,7 @@ export default function BottomNav({ items }: { items: NavItem[] }) {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-soil/10 flex z-10">
+    <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-soil/10 flex z-10 pb-[env(safe-area-inset-bottom)]">
       {items.map((item) => {
         const active = pathname.startsWith(item.href);
         return (
