@@ -60,7 +60,11 @@ export default function OrderSummaryPanel({ conversationId }: { conversationId: 
       setOffers(offs ?? []);
       setLoading(false);
 
-      const acceptedOffer = (offs ?? []).find((o) => o.status === "accepted");
+      // Only the most recent offer represents the current purchase cycle —
+      // an older accepted offer may belong to an already completed order,
+      // and its existence shouldn't redirect the buyer back to it.
+      const latest = (offs ?? [])[(offs ?? []).length - 1];
+      const acceptedOffer = latest && latest.status === "accepted" ? latest : null;
       if (acceptedOffer) {
         const { data: order } = await supabase
           .from("orders")
@@ -119,7 +123,7 @@ export default function OrderSummaryPanel({ conversationId }: { conversationId: 
   if (loading) return <p className="text-soil/60">Loading order…</p>;
 
   const latestOffer = offers[offers.length - 1];
-  const accepted = offers.find((o) => o.status === "accepted");
+  const accepted = latestOffer && latestOffer.status === "accepted" ? latestOffer : undefined;
 
   return (
     <div className="flex flex-col gap-4">

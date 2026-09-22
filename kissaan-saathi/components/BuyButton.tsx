@@ -58,15 +58,34 @@ export default function BuyButton({
     }
 
     // Only place the at-listed-price offer if this conversation doesn't
-    // already have one going — avoids double-offering if the buyer had
-    // already opened this listing's chat before tapping Buy.
-    const { data: existingOffers } = await supabase
+    // already have a *live* one going — avoids double-offering if the buyer
+    // had already opened this listing's chat before tapping Buy. But if the
+    // most recent offer's order already reached delivered/completed, that
+    // purchase cycle is finished, so this Buy click should start a fresh one
+    // instead of reusing (and getting redirected back to) the old order.
+    const { data: latestOfferRows } = await supabase
       .from("offers")
-      .select("id")
+      .select("id, status")
       .eq("conversation_id", conversationId)
+      .order("created_at", { ascending: false })
       .limit(1);
 
-    if (!existingOffers || existingOffers.length === 0) {
+    const latestOffer = latestOfferRows?.[0] ?? null;
+    let needsNewOffer = !latestOffer;
+
+    if (latestOffer && latestOffer.status === "accepted") {
+      const { data: latestOrder } = await supabase
+        .from("orders")
+        .select("status")
+        .eq("offer_id", latestOffer.id)
+        .maybeSingle();
+
+      if (latestOrder && (latestOrder.status === "delivered" || latestOrder.status === "completed")) {
+        needsNewOffer = true;
+      }
+    }
+
+    if (needsNewOffer) {
       const { error: offerError } = await supabase.from("offers").insert({
         conversation_id: conversationId,
         made_by: "buyer",
