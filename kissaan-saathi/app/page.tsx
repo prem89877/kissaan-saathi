@@ -1,8 +1,39 @@
 import Link from "next/link";
+import { redirect } from "next/navigation";
 import { getServerTranslator } from "@/lib/i18n/server";
+import { createClient } from "@/lib/supabase/server";
 import LanguageToggle from "@/components/LanguageToggle";
 
-export default function LandingPage() {
+// This page is also the PWA's start_url. Without this check, a farmer/buyer/
+// delivery/admin who is still validly signed in (cookies intact) would land
+// on the public marketing page every time they reopen the installed app and
+// have to tap "Log In" again by hand — the session was never actually gone,
+// the app just never looked at it. So before rendering the marketing page,
+// check for an existing session server-side and, if one exists, send the
+// user straight to their dashboard. Middleware still re-validates the role
+// and suspended status on that route, so this is purely a UX shortcut, not
+// a new auth check.
+async function redirectIfLoggedIn() {
+  const supabase = createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return;
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", user.id)
+    .single();
+
+  if (profile?.role) {
+    redirect(`/${profile.role}/dashboard`);
+  }
+}
+
+export default async function LandingPage() {
+  await redirectIfLoggedIn();
   const { t } = getServerTranslator();
 
   return (
