@@ -63,6 +63,9 @@ export default async function FarmerListingsPage() {
                     Add photos ({l.product_images?.length ?? 0}/10)
                   </Link>
                 )}
+                <Link href={`/farmer/listings/${l.id}/pickup-location`} className="text-field underline text-xs mt-1 ml-3 inline-block">
+                  Pickup location
+                </Link>
               </div>
             </div>
           );

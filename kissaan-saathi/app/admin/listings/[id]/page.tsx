@@ -25,10 +25,18 @@ export default async function AdminListingDetailPage({ params }: { params: { id:
     return <p className="text-soil/70">Listing not found.</p>;
   }
 
-  const [{ data: images }, { data: farmerProfile }, { data: farmer }] = await Promise.all([
+  const [{ data: images }, { data: farmerProfile }, { data: farmer }, { data: pickup }] = await Promise.all([
     supabase.from("product_images").select("storage_path").eq("listing_id", listing.id),
     supabase.from("profiles").select("full_name, phone, email").eq("id", listing.farmer_id).single(),
     supabase.from("farmer_profiles").select("farm_name, area, address").eq("user_id", listing.farmer_id).single(),
+    // Admins can read this via the "Admins manage pickup locations" RLS
+    // policy in 09_farmer_pickup_location.sql — same admin-role check the
+    // rest of this page already relies on via middleware + RLS.
+    supabase
+      .from("listing_pickup_locations")
+      .select("pickup_latitude, pickup_longitude, pickup_address, pickup_landmark, pickup_instructions, pickup_location_confirmed")
+      .eq("listing_id", listing.id)
+      .maybeSingle(),
   ]);
 
   const photoUrls = (images ?? []).map(
@@ -82,6 +90,29 @@ export default async function AdminListingDetailPage({ params }: { params: { id:
         <p className="text-soil/70 text-sm">{farmerProfile?.phone} · {farmerProfile?.email}</p>
         <p className="text-soil/70 text-sm mt-1">{farmer?.farm_name}</p>
         <p className="text-soil/70 text-sm">{farmer?.area} — {farmer?.address}</p>
+      </section>
+
+      <section className="card">
+        <h2 className="font-medium text-field mb-2">Pickup location</h2>
+        {pickup ? (
+          <>
+            <p className="text-soil">{pickup.pickup_address || "No address entered."}</p>
+            {pickup.pickup_landmark && <p className="text-soil/70 text-sm">Landmark: {pickup.pickup_landmark}</p>}
+            {pickup.pickup_instructions && (
+              <p className="text-soil/70 text-sm">Instructions: {pickup.pickup_instructions}</p>
+            )}
+            <p className="text-soil/60 text-sm mt-1">
+              {pickup.pickup_latitude != null && pickup.pickup_longitude != null
+                ? `${pickup.pickup_latitude}, ${pickup.pickup_longitude}`
+                : "No GPS coordinates"}
+            </p>
+            <p className={`text-sm mt-1 ${pickup.pickup_location_confirmed ? "text-field" : "text-marigold-dark"}`}>
+              {pickup.pickup_location_confirmed ? "Confirmed by farmer" : "Not yet confirmed by farmer"}
+            </p>
+          </>
+        ) : (
+          <p className="text-soil/60 text-sm">Farmer hasn't set a pickup location for this listing yet.</p>
+        )}
       </section>
 
       <section>

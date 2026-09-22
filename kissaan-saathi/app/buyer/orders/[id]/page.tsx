@@ -2,9 +2,11 @@ import { createClient } from "@/lib/supabase/server";
 import OrderStatusButton from "@/components/OrderStatusButton";
 import DisputeButton from "@/components/DisputeButton";
 import PaymentButton from "@/components/PaymentButton";
+import GetDirectionsButton from "@/components/GetDirectionsButton";
+import { getServerTranslator } from "@/lib/i18n/server";
 import Link from "next/link";
 
-const STATUS_LABEL: Record<string, string> = {
+const STATUS_LABEL: Record < string, string > = {
   negotiating: "Negotiating",
   agreed: "Agreed — awaiting confirmation",
   order_placed: "Order placed",
@@ -22,7 +24,7 @@ const STATUS_LABEL: Record<string, string> = {
   replaced: "Replaced",
 };
 
-const PAYMENT_STATUS_LABEL: Record<string, string> = {
+const PAYMENT_STATUS_LABEL: Record < string, string > = {
   pending: "Payment pending",
   processing: "Payment processing",
   paid: "Paid",
@@ -37,7 +39,8 @@ const PHOTO_VISIBLE_STATUSES = ["packing", "packed", "out_for_delivery", "delive
 export default async function BuyerOrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
   const { data: { user } } = await supabase.auth.getUser();
-
+  const { t } = getServerTranslator();
+  
   const { data: order } = await supabase
     .from("orders")
     .select(
@@ -45,26 +48,26 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
     )
     .eq("id", params.id)
     .single();
-
+  
   if (!order) return <p className="text-soil/70">Order not found.</p>;
-
+  
   const { data: buyerProfile } = await supabase
     .from("profiles")
     .select("full_name, email")
     .eq("id", user!.id)
     .single();
-
+  
   const { data: farmerProfile } = await supabase
     .from("profiles")
     .select("full_name, phone")
     .eq("id", order.farmer_id)
     .single();
-
+  
   const { data: evidenceRows } = await supabase
     .from("packing_evidence")
     .select("storage_path")
     .eq("order_id", order.id);
-
+  
   const { data: dispute } = await supabase
     .from("disputes")
     .select("id, reason, description, status, resolution, resolution_notes")
@@ -72,16 +75,30 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
     .order("created_at", { ascending: false })
     .limit(1)
     .maybeSingle();
-
-  const photoUrls = PHOTO_VISIBLE_STATUSES.includes(order.status)
-    ? await Promise.all(
-        (evidenceRows ?? []).map(async (row) => {
-          const { data } = await supabase.storage.from("packing-evidence").createSignedUrl(row.storage_path, 3600);
-          return data?.signedUrl ?? null;
-        })
-      )
-    : [];
-
+  
+  // Defense in depth: even though RLS (09_farmer_pickup_location.sql) is the
+  // real gate and would return nothing anyway, we don't even ask unless the
+  // order is a paid Buyer Pickup order — so an unpaid/failed/COD order never
+  // triggers a query for this data at all.
+  const pickupUnlocked = order.delivery_mode === "pickup" && order.payment_status === "paid";
+  const { data: pickupLocation } = pickupUnlocked
+    ?
+    await supabase
+    .from("listing_pickup_locations")
+    .select("pickup_latitude, pickup_longitude, pickup_address, pickup_landmark, pickup_instructions")
+    .eq("listing_id", order.listing_id)
+    .maybeSingle() :
+    { data: null };
+  
+  const photoUrls = PHOTO_VISIBLE_STATUSES.includes(order.status) ?
+    await Promise.all(
+      (evidenceRows ?? []).map(async (row) => {
+        const { data } = await supabase.storage.from("packing-evidence").createSignedUrl(row.storage_path, 3600);
+        return data?.signedUrl ?? null;
+      })
+    ) :
+    [];
+  
   return (
     <div className="flex flex-col gap-6 pb-10">
       <Link href="/buyer/orders" className="text-field underline text-sm">← Back to orders</Link>
@@ -128,6 +145,41 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
         </div>
       </section>
 
+      {order.delivery_mode === "pickup" && (
+        <section className="card">
+          <h2 className="font-medium text-field mb-2">{t("pickup.title")}</h2>
+          {!pickupUnlocked ? (
+            <p className="text-soil/70 text-sm">{t("pickup.availableAfterPayment")}</p>
+          ) : !pickupLocation || !pickupLocation.pickup_address ? (
+            <p className="text-soil/70 text-sm">
+              The farmer hasn't set a pickup address for this listing yet — use chat to ask them for one.
+            </p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              <p className="text-soil">{pickupLocation.pickup_address}</p>
+              {pickupLocation.pickup_landmark && (
+                <p className="text-soil/80 text-sm">
+                  {t("pickup.landmark")}: {pickupLocation.pickup_landmark}
+                </p>
+              )}
+              {pickupLocation.pickup_instructions && (
+                <p className="text-soil/80 text-sm">
+                  {t("pickup.instructions")}: {pickupLocation.pickup_instructions}
+                </p>
+              )}
+              {pickupLocation.pickup_latitude != null && pickupLocation.pickup_longitude != null && (
+                <div className="mt-2">
+                  <GetDirectionsButton
+                    latitude={pickupLocation.pickup_latitude}
+                    longitude={pickupLocation.pickup_longitude}
+                  />
+                </div>
+              )}
+            </div>
+          )}
+        </section>
+      )}
+
       {order.payment_method === "online" && order.payment_status !== "paid" && order.status !== "cancelled" && (
         <PaymentButton
           orderId={order.id}
@@ -136,14 +188,9 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
           buyerEmail={buyerProfile?.email}
         />
       )}
-      {order.payment_method === "online" && order.status === "agreed" && (
-        <p className="text-soil/60 text-xs text-center -mt-2">
-          Paying confirms and places your order — no separate confirmation step needed.
-        </p>
-      )}
 
-      {order.payment_method === "cod" && order.status === "agreed" && (
-        <OrderStatusButton orderId={order.id} targetStatus="order_placed" label="Confirm & place order (Cash on Delivery)" />
+      {order.status === "agreed" && (
+        <OrderStatusButton orderId={order.id} targetStatus="order_placed" label={`Confirm & place order — ₹${order.buyer_total}`} />
       )}
 
       {(order.status === "agreed" || order.status === "order_placed") && (

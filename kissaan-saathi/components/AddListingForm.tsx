@@ -184,7 +184,10 @@ export default function AddListingForm({ categories }: { categories: Category[] 
 
     setProgressText(null);
     setSubmitting(false);
-    router.push("/farmer/listings");
+    // Send them straight to set a pickup location for this new listing —
+    // it's needed before any Buyer Pickup order on it can work. This is
+    // just a navigation change; listing/photo creation above is untouched.
+    router.push(`/farmer/listings/${listing.id}/pickup-location`);
     router.refresh();
   }
 

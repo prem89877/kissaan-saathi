@@ -108,7 +108,12 @@ export default async function FarmerOrderDetailPage({ params }: { params: { id: 
           </span>
         </div>
         {order.delivery_mode === "pickup" ? (
-          <p className="text-soil/60 text-sm mt-1">Buyer will self-pickup — no delivery needed from you.</p>
+          <p className="text-soil/60 text-sm mt-1">
+            Buyer will self-pickup — no delivery needed from you.{" "}
+            <Link href={`/farmer/listings/${order.listing_id}/pickup-location`} className="text-field underline">
+              Manage pickup location
+            </Link>
+          </p>
         ) : (
           <p className="text-soil/60 text-sm mt-1">Kissaan Saathi Delivery handles this order's delivery.</p>
         )}
