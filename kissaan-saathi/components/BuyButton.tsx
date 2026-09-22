@@ -82,7 +82,7 @@ export default function BuyButton({
     }
 
     setLoading(false);
-    router.push(`/buyer/chat/${conversationId}`);
+    router.push(`/buyer/order-summary/${conversationId}`);
   }
 
   return (
