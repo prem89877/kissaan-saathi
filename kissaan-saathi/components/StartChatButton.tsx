@@ -58,8 +58,8 @@ export default function StartChatButton({
   return (
     <div>
       {error && <p className="text-alert text-sm mb-2">{error}</p>}
-      <button onClick={handleClick} disabled={loading} className="btn-primary w-full">
-        {loading ? "Opening chat…" : "Chat / Negotiate with farmer"}
+      <button onClick={handleClick} disabled={loading} className="btn-secondary w-full">
+        {loading ? "Opening chat…" : "Negotiate with farmer"}
       </button>
     </div>
   );

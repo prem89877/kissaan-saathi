@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { distanceKm } from "@/lib/distance";
 import { calculateDeliveryCost, configFromRows } from "@/lib/deliveryPricing";
 import StartChatButton from "@/components/StartChatButton";
+import BuyButton from "@/components/BuyButton";
 import Link from "next/link";
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
@@ -144,10 +145,19 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
             Chat is disabled — this listing is beyond the 70 km service radius.
           </p>
         ) : (
-          <StartChatButton listingId={listing.id} farmerId={listing.farmer_id} />
+          <>
+            <BuyButton
+              listingId={listing.id}
+              farmerId={listing.farmer_id}
+              moq={listing.moq}
+              pricePerKg={listing.price_per_kg}
+            />
+            <StartChatButton listingId={listing.id} farmerId={listing.farmer_id} />
+          </>
         )}
         <p className="text-soil/50 text-xs text-center">
-          Structured orders are created once you and the farmer agree on a price and quantity in chat.
+          Buy places an offer at the listed price and MOQ for the farmer to accept.
+          Negotiate lets you chat and agree on a different price or quantity first.
         </p>
       </section>
     </div>
