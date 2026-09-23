@@ -85,7 +85,12 @@ export default function ChatThread({
       setOffers(offs ?? []);
       setLoading(false);
 
-      const acceptedOffer = (offs ?? []).find((o) => o.status === "accepted");
+      // Only the most recent offer represents the current purchase cycle —
+      // an older accepted offer may belong to an already completed order,
+      // and its existence shouldn't hide a fresh pending offer from the
+      // other party (or point "View order" at the old, finished order).
+      const latestOfferForLoad = (offs ?? [])[(offs ?? []).length - 1];
+      const acceptedOffer = latestOfferForLoad && latestOfferForLoad.status === "accepted" ? latestOfferForLoad : null;
       if (acceptedOffer) {
         const { data: order } = await supabase
           .from("orders")
@@ -180,7 +185,9 @@ export default function ChatThread({
   const latestOffer = offers[offers.length - 1];
   const isMyTurnToRespond = latestOffer && latestOffer.status === "pending" && latestOffer.made_by !== viewerRole;
   const isWaitingOnOther = latestOffer && latestOffer.status === "pending" && latestOffer.made_by === viewerRole;
-  const accepted = offers.find((o) => o.status === "accepted");
+  // Same rule at render time: an old accepted offer from a finished
+  // purchase cycle should not mask a new pending offer.
+  const accepted = latestOffer && latestOffer.status === "accepted" ? latestOffer : undefined;
 
   return (
     <div className="flex flex-col h-[calc(100vh-140px)]">
