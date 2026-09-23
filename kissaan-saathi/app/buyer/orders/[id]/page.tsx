@@ -3,6 +3,8 @@ import OrderStatusButton from "@/components/OrderStatusButton";
 import DisputeButton from "@/components/DisputeButton";
 import PaymentButton from "@/components/PaymentButton";
 import GetDirectionsButton from "@/components/GetDirectionsButton";
+import BuyerDeliveryLocationForm from "@/components/BuyerDeliveryLocationForm";
+import DeliveryPartnerLiveLocation from "@/components/DeliveryPartnerLiveLocation";
 import { getServerTranslator } from "@/lib/i18n/server";
 import Link from "next/link";
 
@@ -35,6 +37,13 @@ const PAYMENT_STATUS_LABEL: Record < string, string > = {
 };
 
 const PHOTO_VISIBLE_STATUSES = ["packing", "packed", "out_for_delivery", "delivered", "completed", "disputed"];
+
+// Statuses where it's meaningful for the buyer to set/edit their delivery
+// drop-off location — after the farmer has accepted, before the order is
+// done. Only relevant for delivery_mode === "delivery"; Buyer Pickup orders
+// never show this (the buyer collects from the farmer's pickup location
+// instead, which is the existing feature below, untouched).
+const SHOW_DELIVERY_LOCATION_STATUSES = ["accepted_by_seller", "packing", "packed", "out_for_delivery"];
 
 export default async function BuyerOrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
@@ -89,6 +98,22 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
     .eq("listing_id", order.listing_id)
     .maybeSingle() :
     { data: null };
+
+  // NEW: buyer delivery drop-off location (Kissaan Saathi Delivery orders
+  // only). RLS (10_buyer_delivery_and_live_tracking.sql) scopes this to the
+  // buyer's own order, so we can just always ask when delivery_mode is
+  // 'delivery' — no extra gating needed here.
+  const showDeliveryLocation =
+    order.delivery_mode === "delivery" && SHOW_DELIVERY_LOCATION_STATUSES.includes(order.status);
+  const { data: deliveryLocation } = showDeliveryLocation
+    ? await supabase
+        .from("order_delivery_locations")
+        .select(
+          "delivery_latitude, delivery_longitude, delivery_address, delivery_landmark, delivery_instructions, delivery_location_confirmed"
+        )
+        .eq("order_id", order.id)
+        .maybeSingle()
+    : { data: null };
   
   const photoUrls = PHOTO_VISIBLE_STATUSES.includes(order.status) ?
     await Promise.all(
@@ -178,6 +203,30 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
             </div>
           )}
         </section>
+      )}
+
+      {/* NEW: buyer confirms/edits delivery drop-off location. */}
+      {showDeliveryLocation && (
+        <BuyerDeliveryLocationForm
+          orderId={order.id}
+          initial={{
+            latitude: deliveryLocation?.delivery_latitude ?? null,
+            longitude: deliveryLocation?.delivery_longitude ?? null,
+            address: deliveryLocation?.delivery_address ?? "",
+            landmark: deliveryLocation?.delivery_landmark ?? "",
+            instructions: deliveryLocation?.delivery_instructions ?? "",
+            confirmed: deliveryLocation?.delivery_location_confirmed ?? false,
+          }}
+        />
+      )}
+
+      {/* NEW: live delivery partner tracking, once out for delivery. */}
+      {order.delivery_mode === "delivery" && order.status === "out_for_delivery" && (
+        <DeliveryPartnerLiveLocation
+          orderId={order.id}
+          buyerLatitude={deliveryLocation?.delivery_latitude ?? null}
+          buyerLongitude={deliveryLocation?.delivery_longitude ?? null}
+        />
       )}
 
       {order.payment_method === "online" && order.payment_status !== "paid" && order.status !== "cancelled" && (
