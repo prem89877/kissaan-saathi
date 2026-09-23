@@ -17,6 +17,7 @@ export default async function DeliveryLayout({ children }: { children: React.Rea
   const NAV_ITEMS = [
     { href: "/delivery/dashboard", label: t("nav.dashboard") },
     { href: "/delivery/orders", label: t("nav.orders") },
+    { href: "/delivery/profile", label: t("nav.profile") },
   ];
 
   return (

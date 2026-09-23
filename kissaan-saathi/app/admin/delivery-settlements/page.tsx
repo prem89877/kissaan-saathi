@@ -1,47 +1,48 @@
 import { createClient } from "@/lib/supabase/server";
 import Link from "next/link";
 
-export default async function AdminSettlementsPage() {
+export default async function AdminDeliverySettlementsPage() {
   const supabase = createClient();
 
   const { data: eligibleOrders } = await supabase
     .from("orders")
-    .select("farmer_id, product_subtotal, seller_fee, seller_payout")
+    .select("delivery_partner_id, delivery_cost")
+    .eq("delivery_mode", "delivery")
     .in("status", ["delivered", "completed"])
-    .is("settlement_id", null);
+    .is("delivery_settlement_id", null)
+    .not("delivery_partner_id", "is", null);
 
-  const byFarmer = new Map<string, { count: number; gross: number; fee: number; net: number }>();
+  const byPartner = new Map<string, { count: number; net: number }>();
   for (const o of eligibleOrders ?? []) {
-    const entry = byFarmer.get(o.farmer_id) ?? { count: 0, gross: 0, fee: 0, net: 0 };
+    const id = o.delivery_partner_id as string;
+    const entry = byPartner.get(id) ?? { count: 0, net: 0 };
     entry.count += 1;
-    entry.gross += Number(o.product_subtotal);
-    entry.fee += Number(o.seller_fee);
-    entry.net += Number(o.seller_payout);
-    byFarmer.set(o.farmer_id, entry);
+    entry.net += Number(o.delivery_cost);
+    byPartner.set(id, entry);
   }
 
-  const farmerIds = Array.from(byFarmer.keys());
-  const [{ data: profiles }, { data: farmerProfiles }] = await Promise.all([
-    farmerIds.length
-      ? supabase.from("profiles").select("id, full_name").in("id", farmerIds)
+  const partnerIds = Array.from(byPartner.keys());
+  const [{ data: profiles }, { data: deliveryProfiles }] = await Promise.all([
+    partnerIds.length
+      ? supabase.from("profiles").select("id, full_name").in("id", partnerIds)
       : Promise.resolve({ data: [] as { id: string; full_name: string }[] }),
-    farmerIds.length
-      ? supabase.from("farmer_profiles").select("user_id, upi_id").in("user_id", farmerIds)
+    partnerIds.length
+      ? supabase.from("delivery_profiles").select("user_id, upi_id").in("user_id", partnerIds)
       : Promise.resolve({ data: [] as { user_id: string; upi_id: string | null }[] }),
   ]);
 
   const nameById = new Map((profiles ?? []).map((p) => [p.id, p.full_name]));
-  const upiById = new Map((farmerProfiles ?? []).map((f) => [f.user_id, f.upi_id]));
+  const upiById = new Map((deliveryProfiles ?? []).map((d) => [d.user_id, d.upi_id]));
 
   const { data: recentSettlements } = await supabase
-    .from("farmer_settlements")
-    .select("id, farmer_id, amount_paid, utr_reference, payment_date, status")
+    .from("delivery_settlements")
+    .select("id, delivery_partner_id, amount_paid, utr_reference, payment_date, status")
     .order("created_at", { ascending: false })
     .limit(20);
 
   const recentNameById = new Map<string, string>();
   if (recentSettlements && recentSettlements.length > 0) {
-    const ids = Array.from(new Set(recentSettlements.map((s) => s.farmer_id)));
+    const ids = Array.from(new Set(recentSettlements.map((s) => s.delivery_partner_id)));
     const { data: names } = await supabase.from("profiles").select("id, full_name").in("id", ids);
     for (const n of names ?? []) recentNameById.set(n.id, n.full_name);
   }
@@ -50,22 +51,23 @@ export default async function AdminSettlementsPage() {
     <div className="flex flex-col gap-8">
       <div>
         <div className="flex items-center justify-between mb-4">
-          <h1 className="font-display text-2xl text-field">Farmer Settlements</h1>
-          <Link href="/admin/delivery-settlements" className="text-field underline text-sm">Delivery settlements →</Link>
+          <h1 className="font-display text-2xl text-field">Delivery Settlements</h1>
+          <Link href="/admin/settlements" className="text-field underline text-sm">Farmer settlements →</Link>
         </div>
+        <p className="text-soil/60 text-sm mb-4">Paid out weekly, every Sunday, via UPI.</p>
 
-        {byFarmer.size === 0 && <p className="text-soil/70">No pending settlements right now.</p>}
+        {byPartner.size === 0 && <p className="text-soil/70">No pending settlements right now.</p>}
 
         <div className="flex flex-col gap-3">
-          {Array.from(byFarmer.entries()).map(([farmerId, agg]) => (
-            <Link key={farmerId} href={`/admin/settlements/${farmerId}`} className="card block">
+          {Array.from(byPartner.entries()).map(([partnerId, agg]) => (
+            <Link key={partnerId} href={`/admin/delivery-settlements/${partnerId}`} className="card block">
               <div className="flex justify-between items-start">
-                <p className="font-medium text-soil">{nameById.get(farmerId) ?? "Farmer"}</p>
+                <p className="font-medium text-soil">{nameById.get(partnerId) ?? "Delivery Partner"}</p>
                 <span className="text-xs bg-marigold/20 text-marigold-dark rounded-full px-2 py-1">Pending</span>
               </div>
-              <p className="text-soil/60 text-xs mt-1">UPI: {upiById.get(farmerId) || "not set"}</p>
+              <p className="text-soil/60 text-xs mt-1">UPI: {upiById.get(partnerId) || "not set"}</p>
               <p className="text-soil/70 text-sm mt-1">
-                {agg.count} order{agg.count === 1 ? "" : "s"} · Gross ₹{agg.gross.toFixed(2)} · Fee ₹{agg.fee.toFixed(2)}
+                {agg.count} order{agg.count === 1 ? "" : "s"} delivered
               </p>
               <p className="font-medium text-field mt-1">Payable ₹{agg.net.toFixed(2)}</p>
             </Link>
@@ -82,7 +84,7 @@ export default async function AdminSettlementsPage() {
           {recentSettlements?.map((s) => (
             <div key={s.id} className="card">
               <div className="flex justify-between items-start">
-                <p className="font-medium text-soil">{recentNameById.get(s.farmer_id) ?? "Farmer"}</p>
+                <p className="font-medium text-soil">{recentNameById.get(s.delivery_partner_id) ?? "Delivery Partner"}</p>
                 <span className="text-xs bg-field/10 text-field rounded-full px-2 py-1">{s.status}</span>
               </div>
               <p className="text-soil/70 text-sm mt-1">₹{s.amount_paid} · {s.payment_date}</p>

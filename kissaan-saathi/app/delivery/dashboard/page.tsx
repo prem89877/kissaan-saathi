@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createServiceRoleClient } from "@/lib/supabase/serviceRole";
 import DeliveryClaimButton from "@/components/DeliveryClaimButton";
 import OrderStatusButton from "@/components/OrderStatusButton";
+import Link from "next/link";
 
 type OrderRow = {
   id: string;
@@ -36,6 +37,16 @@ export default async function DeliveryDashboard() {
     .eq("delivery_mode", "delivery")
     .eq("status", "out_for_delivery")
     .order("id", { ascending: false });
+
+  const { data: pendingSettlementOrders } = await supabase
+    .from("orders")
+    .select("delivery_cost")
+    .eq("delivery_partner_id", user!.id)
+    .eq("delivery_mode", "delivery")
+    .in("status", ["delivered", "completed"])
+    .is("delivery_settlement_id", null);
+
+  const pendingBalance = (pendingSettlementOrders ?? []).reduce((sum, o) => sum + Number(o.delivery_cost), 0);
 
   const rows = (orders ?? []) as unknown as OrderRow[];
   const myDelivery = rows.filter((o) => o.delivery_partner_id === user!.id);
@@ -98,6 +109,12 @@ export default async function DeliveryDashboard() {
   return (
     <div className="flex flex-col gap-6 pb-10">
       <h1 className="font-display text-2xl text-field">Dashboard</h1>
+
+      <Link href="/delivery/earnings" className="card border-field block">
+        <p className="text-sm text-soil/70">Pending settlement balance</p>
+        <p className="text-2xl font-display text-field">₹{pendingBalance.toFixed(2)}</p>
+        <p className="text-soil/50 text-xs mt-1">Paid every Sunday via UPI · tap to view history</p>
+      </Link>
 
       <section>
         <h2 className="font-medium text-field mb-3">My active delivery ({myDelivery.length})</h2>
