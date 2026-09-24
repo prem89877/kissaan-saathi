@@ -2,6 +2,8 @@ import { createClient } from "@/lib/supabase/server";
 import SignOutButton from "@/components/SignOutButton";
 import BottomNav from "@/components/BottomNav";
 import LanguageToggle from "@/components/LanguageToggle";
+import NotificationProvider from "@/components/notifications/NotificationProvider";
+import NotificationBell from "@/components/notifications/NotificationBell";
 import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function DeliveryLayout({ children }: { children: React.ReactNode }) {
@@ -15,12 +17,12 @@ export default async function DeliveryLayout({ children }: { children: React.Rea
   const { t } = getServerTranslator();
 
   const NAV_ITEMS = [
-    { href: "/delivery/dashboard", label: t("nav.dashboard") },
-    { href: "/delivery/orders", label: t("nav.orders") },
+    { href: "/delivery/dashboard", badge: "dashboard", label: t("nav.dashboard") },
+    { href: "/delivery/orders", badge: "orders", label: t("nav.orders") },
     { href: "/delivery/profile", label: t("nav.profile") },
   ];
 
-  return (
+  const shell = (
     <div className="min-h-screen pb-16">
       <header className="bg-field text-sand px-6 py-4 flex items-center justify-between">
         <div>
@@ -28,6 +30,7 @@ export default async function DeliveryLayout({ children }: { children: React.Rea
           <p className="font-medium">{profile?.full_name ?? "Delivery Partner"}</p>
         </div>
         <div className="flex items-center gap-3">
+          <NotificationBell role="delivery" />
           <LanguageToggle className="flex items-center gap-1 text-sm text-sand/90" />
           <SignOutButton className="text-sm text-sand/80 underline">{t("common.logOut")}</SignOutButton>
         </div>
@@ -36,4 +39,6 @@ export default async function DeliveryLayout({ children }: { children: React.Rea
       <BottomNav items={NAV_ITEMS} />
     </div>
   );
+
+  return user ? <NotificationProvider userId={user.id}>{shell}</NotificationProvider> : shell;
 }
