@@ -4,12 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
+import { getCurrentPosition } from "@/lib/geolocation";
 
 const BUSINESS_TYPES = [
   { value: "restaurant", label: "Restaurant" },
   { value: "hotel", label: "Hotel" },
   { value: "dhaba", label: "Dhaba" },
-] as const;
+] as
+const;
+
+type LocationState = "idle" | "requesting" | "detected" | "denied" | "unavailable";
 
 export default function BuyerSignupPage() {
   const router = useRouter();
@@ -22,39 +26,67 @@ export default function BuyerSignupPage() {
     businessType: "restaurant",
     address: "",
   });
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError] = useState < string | null > (null);
   const [loading, setLoading] = useState(false);
-
+  
+  // Mandatory: the shop / delivery location. Every order defaults to this
+  // point (see supabase/12_buyer_default_delivery_location.sql) so the
+  // delivery partner gets "Get Directions" right away instead of waiting
+  // for the buyer to set a location per order. Buyer can change it later
+  // from their profile.
+  const [locationState, setLocationState] = useState < LocationState > ("idle");
+  const [latitude, setLatitude] = useState < number | null > (null);
+  const [longitude, setLongitude] = useState < number | null > (null);
+  
   function update(field: string) {
-    return (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
+    return (e: React.ChangeEvent < HTMLInputElement | HTMLSelectElement > ) =>
       setForm((f) => ({ ...f, [field]: e.target.value }));
   }
-
+  
+  async function handleUseLocation() {
+    setError(null);
+    setLocationState("requesting");
+    const result = await getCurrentPosition();
+    if (!result.ok) {
+      setLocationState(result.reason);
+      return;
+    }
+    setLatitude(result.latitude);
+    setLongitude(result.longitude);
+    setLocationState("detected");
+  }
+  
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    
+    if (latitude == null || longitude == null) {
+      setError("Please allow location access first — it's required so delivery partners know where to bring your orders.");
+      return;
+    }
+    
     setLoading(true);
-
+    
     try {
       if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
         setError("App isn't configured correctly (missing Supabase URL/key). Please contact support.");
         setLoading(false);
         return;
       }
-
+      
       const supabase = createClient();
-
+      
       const { data, error: signUpError } = await supabase.auth.signUp({
         email: form.email,
         password: form.password,
       });
-
+      
       if (signUpError || !data.user) {
         setError(signUpError?.message || "Could not create your account.");
         setLoading(false);
         return;
       }
-
+      
       // See note in app/signup/farmer/page.tsx re: email confirmation settings.
       const { error: profileError } = await supabase.from("profiles").insert({
         id: data.user.id,
@@ -63,27 +95,29 @@ export default function BuyerSignupPage() {
         phone: form.phone,
         email: form.email,
       });
-
+      
       if (profileError) {
         setError("Account created, but profile setup failed: " + profileError.message);
         setLoading(false);
         return;
       }
-
+      
       const { error: buyerError } = await supabase.from("buyer_profiles").insert({
         user_id: data.user.id,
         business_name: form.businessName,
         business_type: form.businessType,
         address: form.address || null,
+        lat: latitude,
+        lng: longitude,
       });
-
+      
       setLoading(false);
-
+      
       if (buyerError) {
         setError("Profile created, but business details failed to save: " + buyerError.message);
         return;
       }
-
+      
       router.push("/buyer/dashboard");
       router.refresh();
     } catch (err) {
@@ -94,7 +128,7 @@ export default function BuyerSignupPage() {
       setLoading(false);
     }
   }
-
+  
   return (
     <main className="min-h-screen px-6 py-12 max-w-md mx-auto">
       <h1 className="font-display text-3xl text-field mb-1">Join as a business buyer</h1>
@@ -119,6 +153,47 @@ export default function BuyerSignupPage() {
           ))}
         </select>
         <input required placeholder="Business address" className="input-field" value={form.address} onChange={update("address")} />
+
+        <div className="bg-sand rounded-card px-4 py-3 flex flex-col gap-2">
+          <p className="text-sm font-medium text-field">📍 Shop / delivery location (required)</p>
+          <p className="text-soil/70 text-xs">
+            This is where every order will be delivered by default — make sure you're
+            physically at your shop or the place deliveries should reach before you tap Allow.
+            You can change it later from your profile.
+          </p>
+
+          <button
+            type="button"
+            onClick={handleUseLocation}
+            disabled={locationState === "requesting"}
+            className="btn-secondary"
+          >
+            {locationState === "requesting"
+              ? "Detecting your location…"
+              : locationState === "detected"
+              ? "✓ Location captured — tap to re-detect"
+              : "Allow Location Access"}
+          </button>
+
+          {locationState === "detected" && latitude != null && longitude != null && (
+            <p className="text-field text-xs">
+              Captured: {latitude.toFixed(6)}, {longitude.toFixed(6)}
+            </p>
+          )}
+          {locationState === "denied" && (
+            <p className="text-alert text-sm">
+              Location access is required to create a buyer account — delivery partners need it
+              to reach you. Please enable location permission in your browser/device settings and try again.
+            </p>
+          )}
+          {locationState === "unavailable" && (
+            <p className="text-alert text-sm">
+              Couldn't detect your location right now. Please check your device's GPS/location
+              settings and tap "Allow Location Access" again.
+            </p>
+          )}
+        </div>
+
         <button type="submit" disabled={loading} className="btn-primary mt-2">
           {loading ? "Creating account…" : "Create buyer account"}
         </button>
