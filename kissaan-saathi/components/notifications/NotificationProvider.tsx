@@ -44,12 +44,20 @@ export function useNotifications() {
   return useContext(NotificationContext);
 }
 
-// Is this notification about the screen the user is looking at right now?
-// If so it is marked read automatically and no pop-up is shown for it.
+// Is this notification about the LIVE screen the user is looking at right now
+// (a chat, where new messages already appear on screen as they arrive)? Only
+// then is it safe to mark it read automatically and skip the pop-up.
+//
+// This must NOT match order/payment/listing/dispute/settlement notifications:
+// those link to server-rendered pages (e.g. /buyer/orders/[id]) that do not
+// live-refresh, so a buyer sitting on that exact page when the farmer accepts
+// the order would otherwise get the notification silently marked read with
+// no toast and no badge — the one real sign anything happened. Matching by
+// `n.link === path` had the same problem for every notification type whose
+// link happens to equal the page currently open (dashboard, listings, etc.),
+// so that generic check is intentionally gone too.
 function isAboutPath(n: NotificationItem, path: string) {
-  if (n.link && n.link === path) return true;
   if (n.related_conversation_id && (path.endsWith(`/chat/${n.related_conversation_id}`) || path.endsWith(`/order-summary/${n.related_conversation_id}`))) return true;
-  if (n.related_order_id && path.endsWith(`/orders/${n.related_order_id}`)) return true;
   return false;
 }
 
