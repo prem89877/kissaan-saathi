@@ -180,14 +180,19 @@ export default function ChatThread({
   async function createOrder(offerId: string) {
     setCreatingOrder(true);
     setError(null);
-    const { data: orderId, error: rpcError } = await supabase.rpc("create_order_from_offer", {
-      p_offer_id: offerId,
-      p_delivery_mode: deliveryMode,
-      p_payment_method: deliveryMode === "pickup" ? "online" : paymentMethod,
+    const res = await fetch("/api/orders/create-from-offer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        offerId,
+        deliveryMode,
+        paymentMethod: deliveryMode === "pickup" ? "online" : paymentMethod,
+      }),
     });
+    const { orderId, error: apiError } = await res.json();
     setCreatingOrder(false);
-    if (rpcError || !orderId) {
-      setError(rpcError?.message ?? "Could not create the order.");
+    if (!res.ok || !orderId) {
+      setError(apiError ?? "Could not create the order.");
       return;
     }
     setExistingOrderId(orderId as string);

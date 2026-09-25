@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
 import { distanceKm } from "@/lib/distance";
+import { roadDistanceKm } from "@/lib/roadDistance";
 import { calculateBuyerDeliveryFee } from "@/lib/deliveryPricing";
 import StartChatButton from "@/components/StartChatButton";
 import BuyButton from "@/components/BuyButton";
@@ -48,14 +49,23 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   );
 
   const buyerFeePct = fees?.find((f) => f.key === "buyer_fee_pct")?.value ?? 0.05;
+  // Haversine for the quick "~X km away" display — instant, no network call.
   const distance = distanceKm(buyerProfile?.lat ?? null, buyerProfile?.lng ?? null, farmer?.lat ?? null, farmer?.lng ?? null);
+  // Road distance (via OSRM, falls back to haversine on failure) for the
+  // actual fee estimate below — the pricing slabs are defined for road km.
+  const roadDistance = await roadDistanceKm(
+    buyerProfile?.lat ?? null,
+    buyerProfile?.lng ?? null,
+    farmer?.lat ?? null,
+    farmer?.lng ?? null
+  );
 
   // Illustrative breakdown at MOQ — the real, binding total is calculated
   // server-side (calculate_order_totals + calculate_buyer_delivery_fee) once
   // quantity is actually agreed through negotiation.
   const exampleQty = listing.moq;
   const productSubtotal = Math.round(exampleQty * listing.price_per_kg * 100) / 100;
-  const deliveryCost = calculateBuyerDeliveryFee(distance, exampleQty);
+  const deliveryCost = calculateBuyerDeliveryFee(roadDistance, exampleQty);
   const buyerFee = Math.round(productSubtotal * buyerFeePct * 100) / 100;
   const total = Math.round((productSubtotal + buyerFee + deliveryCost) * 100) / 100;
 
