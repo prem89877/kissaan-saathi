@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import Link from "next/link";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -11,11 +12,13 @@ const STATUS_LABEL: Record<string, string> = {
 
 export default async function FarmerListingsPage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
   const { data: listings } = await supabase
     .from("product_listings")
     .select("id, name, price_per_kg, available_qty, status, admin_reviewed, rejection_reason, product_images(storage_path)")
-    .eq("farmer_id", user!.id)
+    .eq("farmer_id", userId)
     .order("created_at", { ascending: false });
 
   return (

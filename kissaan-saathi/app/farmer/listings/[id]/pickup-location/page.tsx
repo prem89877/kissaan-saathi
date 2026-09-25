@@ -1,10 +1,13 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import PickupLocationForm from "@/components/PickupLocationForm";
 import Link from "next/link";
 
 export default async function ListingPickupLocationPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
   const { data: listing } = await supabase
     .from("product_listings")
@@ -12,7 +15,7 @@ export default async function ListingPickupLocationPage({ params }: { params: { 
     .eq("id", params.id)
     .single();
 
-  if (!listing || listing.farmer_id !== user!.id) {
+  if (!listing || listing.farmer_id !== userId) {
     return <p className="text-soil/70">Listing not found.</p>;
   }
 

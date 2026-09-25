@@ -7,9 +7,13 @@ import { createClient } from "@/lib/supabase/client";
 export default function StartChatButton({
   listingId,
   farmerId,
+  userId,
 }: {
   listingId: string;
   farmerId: string;
+  // Passed down from the server page (already verified by middleware.ts) so
+  // this doesn't have to call auth.getUser() itself on every tap.
+  userId: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -19,19 +23,12 @@ export default function StartChatButton({
     setLoading(true);
     setError(null);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      setError("Please log in again.");
-      setLoading(false);
-      return;
-    }
 
     const { data: existing } = await supabase
       .from("conversations")
       .select("id")
       .eq("listing_id", listingId)
-      .eq("buyer_id", user.id)
+      .eq("buyer_id", userId)
       .maybeSingle();
 
     if (existing) {
@@ -41,7 +38,7 @@ export default function StartChatButton({
 
     const { data: created, error: createError } = await supabase
       .from("conversations")
-      .insert({ listing_id: listingId, farmer_id: farmerId, buyer_id: user.id })
+      .insert({ listing_id: listingId, farmer_id: farmerId, buyer_id: userId })
       .select("id")
       .single();
 

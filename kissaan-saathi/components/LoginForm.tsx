@@ -64,7 +64,6 @@ function LoginFormInner() {
       }
 
       router.push(params.get("next") || `/${profile.role}/dashboard`);
-      router.refresh();
     } catch (err) {
       setError(
         "Something went wrong reaching the server. Please check your connection and try again. " +

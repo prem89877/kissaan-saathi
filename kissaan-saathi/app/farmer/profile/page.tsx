@@ -1,20 +1,22 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import FarmerUpiForm from "@/components/FarmerUpiForm";
 import Link from "next/link";
 
 export default async function FarmerProfilePage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, phone, email")
-    .eq("id", user!.id)
-    .single();
-  const { data: farmer } = await supabase
-    .from("farmer_profiles")
-    .select("farm_name, area, address, upi_id, upi_holder_name")
-    .eq("user_id", user!.id)
-    .single();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
+  // Independent of each other — fetch in parallel.
+  const [{ data: profile }, { data: farmer }] = await Promise.all([
+    supabase.from("profiles").select("full_name, phone, email").eq("id", userId).single(),
+    supabase
+      .from("farmer_profiles")
+      .select("farm_name, area, address, upi_id, upi_holder_name")
+      .eq("user_id", userId)
+      .single(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">

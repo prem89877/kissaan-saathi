@@ -1,22 +1,25 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import Link from "next/link";
 
 export default async function DeliveryEarningsPage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
   const [{ data: pendingOrders }, { data: settlements }] = await Promise.all([
     supabase
       .from("orders")
       .select("id, delivery_cost")
-      .eq("delivery_partner_id", user!.id)
+      .eq("delivery_partner_id", userId)
       .eq("delivery_mode", "delivery")
       .in("status", ["delivered", "completed"])
       .is("delivery_settlement_id", null),
     supabase
       .from("delivery_settlements")
       .select("id, gross_amount, net_payable, amount_paid, utr_reference, payment_date, status, created_at")
-      .eq("delivery_partner_id", user!.id)
+      .eq("delivery_partner_id", userId)
       .order("created_at", { ascending: false }),
   ]);
 

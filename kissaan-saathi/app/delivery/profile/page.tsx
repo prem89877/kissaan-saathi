@@ -1,22 +1,19 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import DeliveryUpiForm from "@/components/DeliveryUpiForm";
 import Link from "next/link";
 
 export default async function DeliveryProfilePage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("full_name, phone, email")
-    .eq("id", user!.id)
-    .single();
-
-  const { data: deliveryProfile } = await supabase
-    .from("delivery_profiles")
-    .select("upi_id, upi_holder_name")
-    .eq("user_id", user!.id)
-    .maybeSingle();
+  // Independent of each other — fetch in parallel.
+  const [{ data: profile }, { data: deliveryProfile }] = await Promise.all([
+    supabase.from("profiles").select("full_name, phone, email").eq("id", userId).single(),
+    supabase.from("delivery_profiles").select("upi_id, upi_holder_name").eq("user_id", userId).maybeSingle(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">

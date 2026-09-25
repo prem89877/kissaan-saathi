@@ -1,9 +1,12 @@
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 
 export default async function FarmerDashboard() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
   
   const [
     { count: activeListings },
@@ -13,12 +16,12 @@ export default async function FarmerDashboard() {
     { count: activeNegotiations },
     { data: pendingSettlementOrders },
   ] = await Promise.all([
-    supabase.from("product_listings").select("id", { count: "exact", head: true }).eq("farmer_id", user!.id).eq("status", "approved"),
-    supabase.from("product_listings").select("id", { count: "exact", head: true }).eq("farmer_id", user!.id).eq("status", "pending_review"),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("farmer_id", user!.id).in("status", ["order_placed", "accepted_by_seller"]),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("farmer_id", user!.id).eq("status", "completed"),
-    supabase.from("conversations").select("id", { count: "exact", head: true }).eq("farmer_id", user!.id),
-    supabase.from("orders").select("seller_payout").eq("farmer_id", user!.id).in("status", ["delivered", "completed"]).is("settlement_id", null),
+    supabase.from("product_listings").select("id", { count: "exact", head: true }).eq("farmer_id", userId).eq("status", "approved"),
+    supabase.from("product_listings").select("id", { count: "exact", head: true }).eq("farmer_id", userId).eq("status", "pending_review"),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("farmer_id", userId).in("status", ["order_placed", "accepted_by_seller"]),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("farmer_id", userId).eq("status", "completed"),
+    supabase.from("conversations").select("id", { count: "exact", head: true }).eq("farmer_id", userId),
+    supabase.from("orders").select("seller_payout").eq("farmer_id", userId).in("status", ["delivered", "completed"]).is("settlement_id", null),
   ]);
   
   const pendingBalance = (pendingSettlementOrders ?? []).reduce((sum, o) => sum + Number(o.seller_payout), 0);
@@ -30,7 +33,7 @@ export default async function FarmerDashboard() {
   const { data: allConversations } = await supabase
     .from("conversations")
     .select("id, listing_id, buyer_id")
-    .eq("farmer_id", user!.id);
+    .eq("farmer_id", userId);
   
   const conversationIds = (allConversations ?? []).map((c) => c.id);
   

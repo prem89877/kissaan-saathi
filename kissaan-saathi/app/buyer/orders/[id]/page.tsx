@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import OrderStatusButton from "@/components/OrderStatusButton";
 import DisputeButton from "@/components/DisputeButton";
 import PaymentButton from "@/components/PaymentButton";
@@ -47,7 +48,9 @@ const SHOW_DELIVERY_LOCATION_STATUSES = ["accepted_by_seller", "packing", "packe
 
 export default async function BuyerOrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
   const { t } = getServerTranslator();
   
   const { data: order } = await supabase
@@ -63,7 +66,7 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
   const { data: buyerProfile } = await supabase
     .from("profiles")
     .select("full_name, email")
-    .eq("id", user!.id)
+    .eq("id", userId)
     .single();
   
   const { data: farmerProfile } = await supabase

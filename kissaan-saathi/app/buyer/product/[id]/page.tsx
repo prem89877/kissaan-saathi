@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import { distanceKm } from "@/lib/distance";
 import { calculateDeliveryCost, configFromRows } from "@/lib/deliveryPricing";
 import StartChatButton from "@/components/StartChatButton";
@@ -7,7 +8,9 @@ import Link from "next/link";
 
 export default async function ProductDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
   const { data: listing } = await supabase
     .from("product_listings")
@@ -36,7 +39,7 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
       supabase.from("product_images").select("storage_path").eq("listing_id", listing.id),
       supabase.from("profiles").select("full_name").eq("id", listing.farmer_id).single(),
       supabase.from("farmer_profiles").select("farm_name, area, lat, lng").eq("user_id", listing.farmer_id).single(),
-      supabase.from("buyer_profiles").select("lat, lng").eq("user_id", user!.id).single(),
+      supabase.from("buyer_profiles").select("lat, lng").eq("user_id", userId).single(),
       supabase.from("platform_fees").select("key, value"),
       supabase.from("delivery_pricing_config").select("key, value"),
     ]);
@@ -151,8 +154,9 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
               farmerId={listing.farmer_id}
               moq={listing.moq}
               pricePerKg={listing.price_per_kg}
+              userId={userId}
             />
-            <StartChatButton listingId={listing.id} farmerId={listing.farmer_id} />
+            <StartChatButton listingId={listing.id} farmerId={listing.farmer_id} userId={userId} />
           </>
         )}
         <p className="text-soil/50 text-xs text-center">

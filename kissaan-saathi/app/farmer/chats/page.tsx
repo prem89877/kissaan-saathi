@@ -1,14 +1,17 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import Link from "next/link";
 
 export default async function FarmerChatsPage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
   const { data: conversations } = await supabase
     .from("conversations")
     .select("id, listing_id, buyer_id, created_at")
-    .eq("farmer_id", user!.id)
+    .eq("farmer_id", userId)
     .order("created_at", { ascending: false });
 
   const listingIds = Array.from(new Set((conversations ?? []).map((c) => c.listing_id)));

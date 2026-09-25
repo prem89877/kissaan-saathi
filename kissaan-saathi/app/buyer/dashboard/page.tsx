@@ -1,13 +1,16 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import Link from "next/link";
 
 export default async function BuyerDashboard() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
   const [{ count: activeOrders }, { count: completedOrders }] = await Promise.all([
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("buyer_id", user!.id).not("status", "in", "(completed,cancelled)"),
-    supabase.from("orders").select("id", { count: "exact", head: true }).eq("buyer_id", user!.id).eq("status", "completed"),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("buyer_id", userId).not("status", "in", "(completed,cancelled)"),
+    supabase.from("orders").select("id", { count: "exact", head: true }).eq("buyer_id", userId).eq("status", "completed"),
   ]);
 
   const { count: approvedListings } = await supabase

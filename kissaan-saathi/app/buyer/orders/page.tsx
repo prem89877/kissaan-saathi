@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import Link from "next/link";
 
 const STATUS_LABEL: Record < string, string > = {
@@ -21,21 +22,23 @@ const STATUS_LABEL: Record < string, string > = {
 
 export default async function BuyerOrdersPage() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data: orders } = await supabase
-    .from("orders")
-    .select("id, quantity, price_per_kg, buyer_total, status, listing_id, product_listings(name)")
-    .eq("buyer_id", user!.id)
-    .order("created_at", { ascending: false });
-  
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
+
+  // These two are independent of each other — fetch in parallel.
   // Declined requests — a farmer's reject on a buy request never becomes a
   // row in "orders", so it has to be surfaced here from "offers" instead.
   // Only the *latest* offer in each conversation counts, so an old rejected
   // offer from a conversation that later succeeded doesn't show up again.
-  const { data: conversations } = await supabase
-    .from("conversations")
-    .select("id, listing_id")
-    .eq("buyer_id", user!.id);
+  const [{ data: orders }, { data: conversations }] = await Promise.all([
+    supabase
+      .from("orders")
+      .select("id, quantity, price_per_kg, buyer_total, status, listing_id, product_listings(name)")
+      .eq("buyer_id", userId)
+      .order("created_at", { ascending: false }),
+    supabase.from("conversations").select("id, listing_id").eq("buyer_id", userId),
+  ]);
   
   const conversationIds = (conversations ?? []).map((c) => c.id);
   

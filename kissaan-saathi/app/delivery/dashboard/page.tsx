@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import { createServiceRoleClient } from "@/lib/supabase/serviceRole";
 import DeliveryClaimButton from "@/components/DeliveryClaimButton";
 import OrderStatusButton from "@/components/OrderStatusButton";
@@ -35,32 +36,37 @@ function listingName(row: OrderRow) {
 
 export default async function DeliveryDashboard() {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
 
   // RLS (orders_select_delivery) already limits this to: orders assigned to
   // me, or unassigned orders that are out_for_delivery + delivery_mode
   // 'delivery' — i.e. exactly the two buckets this page needs, nothing more.
-  const { data: orders } = await supabase
-    .from("orders")
-    .select(
-      "id, quantity, price_per_kg, delivery_cost, status, delivery_partner_id, farmer_id, buyer_id, product_listings(name)"
-    )
-    .eq("delivery_mode", "delivery")
-    .eq("status", "out_for_delivery")
-    .order("id", { ascending: false });
-
-  const { data: pendingSettlementOrders } = await supabase
-    .from("orders")
-    .select("delivery_cost")
-    .eq("delivery_partner_id", user!.id)
-    .eq("delivery_mode", "delivery")
-    .in("status", ["delivered", "completed"])
-    .is("delivery_settlement_id", null);
+  // These two are independent of each other — fetch in parallel instead of
+  // one after another.
+  const [{ data: orders }, { data: pendingSettlementOrders }] = await Promise.all([
+    supabase
+      .from("orders")
+      .select(
+        "id, quantity, price_per_kg, delivery_cost, status, delivery_partner_id, farmer_id, buyer_id, product_listings(name)"
+      )
+      .eq("delivery_mode", "delivery")
+      .eq("status", "out_for_delivery")
+      .order("id", { ascending: false }),
+    supabase
+      .from("orders")
+      .select("delivery_cost")
+      .eq("delivery_partner_id", userId)
+      .eq("delivery_mode", "delivery")
+      .in("status", ["delivered", "completed"])
+      .is("delivery_settlement_id", null),
+  ]);
 
   const pendingBalance = (pendingSettlementOrders ?? []).reduce((sum, o) => sum + Number(o.delivery_cost), 0);
 
   const rows = (orders ?? []) as unknown as OrderRow[];
-  const myDelivery = rows.filter((o) => o.delivery_partner_id === user!.id);
+  const myDelivery = rows.filter((o) => o.delivery_partner_id === userId);
   const available = rows.filter((o) => o.delivery_partner_id === null);
 
   // Pickup (farmer) / drop-off (buyer) contact details aren't needed by the
@@ -151,7 +157,7 @@ export default async function DeliveryDashboard() {
         <div className="mt-3 flex flex-col gap-3">
           {mine ? (
             <>
-              <DeliveryLocationShareButton orderId={order.id} initialActive={activeShareMap.get(order.id) ?? false} />
+              <DeliveryLocationShareButton orderId={order.id} initialActive={activeShareMap.get(order.id) ?? false} userId={userId} />
               <OrderStatusButton orderId={order.id} targetStatus="delivered" label="Mark delivered" />
             </>
           ) : (

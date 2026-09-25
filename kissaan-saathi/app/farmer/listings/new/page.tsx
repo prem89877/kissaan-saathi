@@ -1,8 +1,11 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import AddListingForm from "@/components/AddListingForm";
 
 export default async function NewListingPage() {
   const supabase = createClient();
+  // middleware.ts already verified this user for this exact request.
+  const userId = await requireUserId();
   const { data: categories } = await supabase
     .from("categories")
     .select("id, name, parent_id")
@@ -15,7 +18,7 @@ export default async function NewListingPage() {
         Fill in the details below. Your listing goes to an admin for review
         before it's visible to buyers.
       </p>
-      <AddListingForm categories={categories ?? []} />
+      <AddListingForm categories={categories ?? []} userId={userId} />
     </div>
   );
 }

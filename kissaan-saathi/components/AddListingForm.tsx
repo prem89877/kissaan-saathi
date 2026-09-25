@@ -16,7 +16,15 @@ async function fileHash(file: File): Promise<string> {
     .join("");
 }
 
-export default function AddListingForm({ categories }: { categories: Category[] }) {
+export default function AddListingForm({
+  categories,
+  userId,
+}: {
+  categories: Category[];
+  // Passed down from the server page (already verified by middleware.ts) so
+  // this doesn't have to call auth.getUser() itself on submit.
+  userId: string;
+}) {
   const router = useRouter();
 
   const [form, setForm] = useState({
@@ -110,19 +118,12 @@ export default function AddListingForm({ categories }: { categories: Category[] 
 
     setSubmitting(true);
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-
-    if (!user) {
-      setFormError("You've been signed out. Please log in again.");
-      setSubmitting(false);
-      return;
-    }
 
     setProgressText("Creating listing…");
     const { data: listing, error: insertError } = await supabase
       .from("product_listings")
       .insert({
-        farmer_id: user.id,
+        farmer_id: userId,
         category_id: form.categoryId,
         name: form.name.trim(),
         price_per_kg: parseFloat(form.pricePerKg),

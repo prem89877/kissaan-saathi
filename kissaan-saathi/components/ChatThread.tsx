@@ -26,14 +26,20 @@ type ConversationInfo = {
 export default function ChatThread({
   conversationId,
   viewerRole,
+  userId: initialUserId,
 }: {
   conversationId: string;
   viewerRole: "farmer" | "buyer";
+  // Passed down from the server page, which already knows who's signed in
+  // (via middleware.ts) — avoids an extra client-side auth.getUser() round
+  // trip every time a chat is opened. Falls back to fetching it only if a
+  // caller doesn't supply it.
+  userId?: string;
 }) {
   const supabase = createClient();
   const router = useRouter();
   const { t } = useTranslation();
-  const [userId, setUserId] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(initialUserId ?? null);
   const [info, setInfo] = useState<ConversationInfo | null>(null);
   const [messages, setMessages] = useState<Message[]>([]);
   const [offers, setOffers] = useState<Offer[]>([]);
@@ -43,6 +49,7 @@ export default function ChatThread({
   const [loading, setLoading] = useState(true);
   const [existingOrderId, setExistingOrderId] = useState<string | null>(null);
   const [creatingOrder, setCreatingOrder] = useState(false);
+  const [submittingOffer, setSubmittingOffer] = useState(false);
   const [deliveryMode, setDeliveryMode] = useState<"delivery" | "pickup">("delivery");
   const [paymentMethod, setPaymentMethod] = useState<"online" | "cod">("online");
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -51,8 +58,12 @@ export default function ChatThread({
     let channel: ReturnType<typeof supabase.channel> | null = null;
 
     async function load() {
-      const { data: { user } } = await supabase.auth.getUser();
-      setUserId(user?.id ?? null);
+      if (initialUserId) {
+        setUserId(initialUserId);
+      } else {
+        const { data: { user } } = await supabase.auth.getUser();
+        setUserId(user?.id ?? null);
+      }
 
       const { data: conversation } = await supabase
         .from("conversations")
@@ -140,6 +151,8 @@ export default function ChatThread({
   }
 
   async function submitOffer(quantity: number, price: number, isCounter: boolean) {
+    if (submittingOffer) return; // guard against an accidental double-tap
+    setSubmittingOffer(true);
     setError(null);
     // Only one offer should be actionable at a time — supersede any still-pending ones.
     const pendingIds = offers.filter((o) => o.status === "pending").map((o) => o.id);
@@ -154,6 +167,7 @@ export default function ChatThread({
       status: "pending",
     });
     if (offerError) setError(offerError.message);
+    setSubmittingOffer(false);
     setShowOfferForm(null);
   }
 
@@ -305,6 +319,7 @@ export default function ChatThread({
           submitLabel={showOfferForm === "counter" ? "Send counter offer" : "Send offer"}
           onSubmit={(q, p) => submitOffer(q, p, showOfferForm === "counter")}
           onCancel={() => setShowOfferForm(null)}
+          disabled={submittingOffer}
         />
       )}
 

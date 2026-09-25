@@ -15,9 +15,13 @@ const UPDATE_INTERVAL_MS = 15000; // ~15s — frequent enough to feel "live"
 export default function DeliveryLocationShareButton({
   orderId,
   initialActive,
+  userId,
 }: {
   orderId: string;
   initialActive: boolean;
+  // Passed down from the server page (already verified by middleware.ts) so
+  // this doesn't have to call auth.getUser() on every ~15s location push.
+  userId: string;
 }) {
   const [sharing, setSharing] = useState(initialActive);
   const [error, setError] = useState<string | null>(null);
@@ -26,8 +30,6 @@ export default function DeliveryLocationShareButton({
 
   async function pushLocation() {
     const supabase = createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (!user) return;
 
     const result = await getCurrentPosition();
     if (!result.ok) {
@@ -46,7 +48,7 @@ export default function DeliveryLocationShareButton({
     await supabase.from("delivery_partner_locations").upsert(
       {
         order_id: orderId,
-        delivery_partner_id: user.id,
+        delivery_partner_id: userId,
         latitude: result.latitude,
         longitude: result.longitude,
         accuracy: null,

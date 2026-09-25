@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { requireUserId } from "@/lib/auth/session";
 import SignOutButton from "@/components/SignOutButton";
 import BottomNav from "@/components/BottomNav";
 import LanguageToggle from "@/components/LanguageToggle";
@@ -8,11 +9,13 @@ import { getServerTranslator } from "@/lib/i18n/server";
 
 export default async function DeliveryLayout({ children }: { children: React.ReactNode }) {
   const supabase = createClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  // middleware.ts already verified this user for this exact request — reuse
+  // that instead of calling supabase.auth.getUser() again here.
+  const userId = await requireUserId();
   const { data: profile } = await supabase
     .from("profiles")
     .select("full_name")
-    .eq("id", user?.id)
+    .eq("id", userId)
     .single();
   const { t } = getServerTranslator();
 
@@ -40,5 +43,5 @@ export default async function DeliveryLayout({ children }: { children: React.Rea
     </div>
   );
 
-  return user ? <NotificationProvider userId={user.id}>{shell}</NotificationProvider> : shell;
+  return <NotificationProvider userId={userId}>{shell}</NotificationProvider>;
 }
