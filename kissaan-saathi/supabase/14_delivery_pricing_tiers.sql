@@ -70,15 +70,28 @@ comment on column orders.platform_delivery_margin is
 -- Wiring this in (do this part by hand — create_order_from_offer isn't in
 -- this export, so it can't be safely rewritten from here):
 --
--- 1. In create_order_from_offer (or wherever delivery_cost is currently
---    set on insert), replace the old calculate_delivery_cost(...) call
---    with calculate_buyer_delivery_fee(distance_km, quantity_kg), and also
---    set delivery_partner_earning = calculate_delivery_partner_earning(distance_km)
---    on the same insert.
+-- 1. app/api/orders/create-from-offer/route.ts now computes one-way ROAD
+--    distance server-side (via OSRM, see lib/roadDistance.ts) and calls:
+--      supabase.rpc("create_order_from_offer", {
+--        p_offer_id, p_delivery_mode, p_payment_method,
+--        p_road_distance_km   -- NEW
+--      })
+--    create_order_from_offer needs a matching new parameter to accept it.
+--    Get its current definition from the Supabase SQL editor with:
+--      select pg_get_functiondef('create_order_from_offer'::regproc);
+--    then add a parameter with a default so nothing else calling it breaks:
+--      p_road_distance_km numeric default null
+--    and inside the function body, wherever it currently computes distance
+--    (probably a haversine expression using farmer/buyer lat/lng) and calls
+--    the old calculate_delivery_cost(...), replace both with:
+--      v_distance_km := coalesce(p_road_distance_km, <existing haversine expression as fallback>);
+--      v_delivery_cost := calculate_buyer_delivery_fee(v_distance_km, v_quantity_kg);
+--      v_delivery_partner_earning := calculate_delivery_partner_earning(v_distance_km);
+--    and set both v_delivery_cost and v_delivery_partner_earning on the
+--    orders insert. Paste the function's current body back and I'll give you
+--    the exact CREATE OR REPLACE to run.
 --
--- 2. One-off backfill for existing orders once you can compute their
---    distance_km (swap in whatever expression gives you that per order —
---    there's no stored distance column today):
+-- 2. One-off backfill for existing orders placed before this change:
 --
 --    update orders
 --    set delivery_partner_earning = delivery_cost
@@ -88,6 +101,6 @@ comment on column orders.platform_delivery_margin is
 --
 -- 3. Point everywhere that currently reads delivery_cost to mean "what the
 --    delivery partner earns" (delivery-settlements pages, delivery
---    earnings/dashboard/orders pages — see accompanying .tsx changes) at
---    delivery_partner_earning instead.
+--    earnings/dashboard/orders pages) at delivery_partner_earning instead —
+--    already done in the accompanying .tsx files.
 -- ---------------------------------------------------------------------
