@@ -11,7 +11,7 @@ export default async function DeliveryEarningsPage() {
   const [{ data: pendingOrders }, { data: settlements }] = await Promise.all([
     supabase
       .from("orders")
-      .select("id, delivery_cost")
+      .select("id, delivery_cost, delivery_partner_earning")
       .eq("delivery_partner_id", userId)
       .eq("delivery_mode", "delivery")
       .in("status", ["delivered", "completed"])
@@ -24,7 +24,10 @@ export default async function DeliveryEarningsPage() {
   ]);
 
   const pendingCount = pendingOrders?.length ?? 0;
-  const pendingNet = (pendingOrders ?? []).reduce((sum, o) => sum + Number(o.delivery_cost), 0);
+  const pendingNet = (pendingOrders ?? []).reduce(
+    (sum, o) => sum + Number(o.delivery_partner_earning ?? o.delivery_cost),
+    0
+  );
 
   return (
     <div className="flex flex-col gap-6">
@@ -39,7 +42,6 @@ export default async function DeliveryEarningsPage() {
         <p className="text-soil/60 text-sm mt-1">
           From {pendingCount} delivered order{pendingCount === 1 ? "" : "s"} not yet paid out.
         </p>
-        <p className="text-soil/50 text-xs mt-2">This is the full delivery fee for each order — no platform cut.</p>
       </section>
 
       <section>

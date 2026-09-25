@@ -6,7 +6,7 @@ export default async function AdminDeliverySettlementsPage() {
 
   const { data: eligibleOrders } = await supabase
     .from("orders")
-    .select("delivery_partner_id, delivery_cost")
+    .select("delivery_partner_id, delivery_cost, delivery_partner_earning")
     .eq("delivery_mode", "delivery")
     .in("status", ["delivered", "completed"])
     .is("delivery_settlement_id", null)
@@ -17,7 +17,9 @@ export default async function AdminDeliverySettlementsPage() {
     const id = o.delivery_partner_id as string;
     const entry = byPartner.get(id) ?? { count: 0, net: 0 };
     entry.count += 1;
-    entry.net += Number(o.delivery_cost);
+    // Falls back to delivery_cost for any order settled before
+    // delivery_partner_earning was backfilled.
+    entry.net += Number(o.delivery_partner_earning ?? o.delivery_cost);
     byPartner.set(id, entry);
   }
 

@@ -16,7 +16,7 @@ export default async function DeliveryOrdersPage() {
 
   const { data: orders } = await supabase
     .from("orders")
-    .select("id, quantity, price_per_kg, delivery_cost, status, product_listings(name)")
+    .select("id, quantity, price_per_kg, delivery_cost, delivery_partner_earning, status, product_listings(name)")
     .eq("delivery_partner_id", userId)
     .order("assigned_at", { ascending: false });
 
@@ -36,7 +36,7 @@ export default async function DeliveryOrdersPage() {
               </span>
             </div>
             <p className="text-soil/70 text-sm mt-1">
-              {o.quantity} kg · Delivery fee ₹{o.delivery_cost}
+              {o.quantity} kg · Your earning ₹{o.delivery_partner_earning ?? o.delivery_cost}
             </p>
           </div>
         ))}

@@ -12,6 +12,7 @@ type OrderRow = {
   quantity: number;
   price_per_kg: number;
   delivery_cost: number;
+  delivery_partner_earning: number | null;
   status: string;
   delivery_partner_id: string | null;
   farmer_id: string;
@@ -49,21 +50,24 @@ export default async function DeliveryDashboard() {
     supabase
       .from("orders")
       .select(
-        "id, quantity, price_per_kg, delivery_cost, status, delivery_partner_id, farmer_id, buyer_id, product_listings(name)"
+        "id, quantity, price_per_kg, delivery_cost, delivery_partner_earning, status, delivery_partner_id, farmer_id, buyer_id, product_listings(name)"
       )
       .eq("delivery_mode", "delivery")
       .eq("status", "out_for_delivery")
       .order("id", { ascending: false }),
     supabase
       .from("orders")
-      .select("delivery_cost")
+      .select("delivery_cost, delivery_partner_earning")
       .eq("delivery_partner_id", userId)
       .eq("delivery_mode", "delivery")
       .in("status", ["delivered", "completed"])
       .is("delivery_settlement_id", null),
   ]);
 
-  const pendingBalance = (pendingSettlementOrders ?? []).reduce((sum, o) => sum + Number(o.delivery_cost), 0);
+  const pendingBalance = (pendingSettlementOrders ?? []).reduce(
+    (sum, o) => sum + Number(o.delivery_partner_earning ?? o.delivery_cost),
+    0
+  );
 
   const rows = (orders ?? []) as unknown as OrderRow[];
   const myDelivery = rows.filter((o) => o.delivery_partner_id === userId);
@@ -153,7 +157,7 @@ export default async function DeliveryDashboard() {
             <p className="text-soil/60">{buyer?.address}</p>
           )}
         </div>
-        <p className="text-xs text-soil/50 mt-2">Delivery fee: ₹{order.delivery_cost}</p>
+        <p className="text-xs text-soil/50 mt-2">Your earning: ₹{order.delivery_partner_earning ?? order.delivery_cost}</p>
         <div className="mt-3 flex flex-col gap-3">
           {mine ? (
             <>

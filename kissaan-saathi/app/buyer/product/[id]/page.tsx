@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
 import { distanceKm } from "@/lib/distance";
-import { calculateDeliveryCost, configFromRows } from "@/lib/deliveryPricing";
+import { calculateBuyerDeliveryFee } from "@/lib/deliveryPricing";
 import StartChatButton from "@/components/StartChatButton";
 import BuyButton from "@/components/BuyButton";
 import Link from "next/link";
@@ -34,14 +34,13 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
     );
   }
 
-  const [{ data: images }, { data: farmerProfile }, { data: farmer }, { data: buyerProfile }, { data: fees }, { data: deliveryConfigRows }] =
+  const [{ data: images }, { data: farmerProfile }, { data: farmer }, { data: buyerProfile }, { data: fees }] =
     await Promise.all([
       supabase.from("product_images").select("storage_path").eq("listing_id", listing.id),
       supabase.from("profiles").select("full_name").eq("id", listing.farmer_id).single(),
       supabase.from("farmer_profiles").select("farm_name, area, lat, lng").eq("user_id", listing.farmer_id).single(),
       supabase.from("buyer_profiles").select("lat, lng").eq("user_id", userId).single(),
       supabase.from("platform_fees").select("key, value"),
-      supabase.from("delivery_pricing_config").select("key, value"),
     ]);
 
   const photoUrls = (images ?? []).map(
@@ -52,11 +51,11 @@ export default async function ProductDetailPage({ params }: { params: { id: stri
   const distance = distanceKm(buyerProfile?.lat ?? null, buyerProfile?.lng ?? null, farmer?.lat ?? null, farmer?.lng ?? null);
 
   // Illustrative breakdown at MOQ — the real, binding total is calculated
-  // server-side (calculate_order_totals + calculate_delivery_cost) once
+  // server-side (calculate_order_totals + calculate_buyer_delivery_fee) once
   // quantity is actually agreed through negotiation.
   const exampleQty = listing.moq;
   const productSubtotal = Math.round(exampleQty * listing.price_per_kg * 100) / 100;
-  const deliveryCost = calculateDeliveryCost(distance, exampleQty, configFromRows(deliveryConfigRows));
+  const deliveryCost = calculateBuyerDeliveryFee(distance, exampleQty);
   const buyerFee = Math.round(productSubtotal * buyerFeePct * 100) / 100;
   const total = Math.round((productSubtotal + buyerFee + deliveryCost) * 100) / 100;
 

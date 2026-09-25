@@ -18,7 +18,7 @@ export default async function AdminDeliverySettlementDetailPage({
       .maybeSingle(),
     supabase
       .from("orders")
-      .select("id, delivery_cost, status, product_listings(name)")
+      .select("id, delivery_cost, delivery_partner_earning, status, product_listings(name)")
       .eq("delivery_partner_id", params.deliveryPartnerId)
       .eq("delivery_mode", "delivery")
       .in("status", ["delivered", "completed"])
@@ -26,7 +26,7 @@ export default async function AdminDeliverySettlementDetailPage({
       .order("created_at", { ascending: true }),
   ]);
 
-  const net = (orders ?? []).reduce((sum, o) => sum + Number(o.delivery_cost), 0);
+  const net = (orders ?? []).reduce((sum, o) => sum + Number(o.delivery_partner_earning ?? o.delivery_cost), 0);
 
   return (
     <div className="flex flex-col gap-6 pb-10">
@@ -58,7 +58,7 @@ export default async function AdminDeliverySettlementDetailPage({
           {orders?.map((o: any) => (
             <div key={o.id} className="card">
               <p className="text-sm text-soil">{o.product_listings?.name}</p>
-              <p className="text-soil/60 text-xs">Delivery fee ₹{o.delivery_cost}</p>
+              <p className="text-soil/60 text-xs">Earning ₹{o.delivery_partner_earning ?? o.delivery_cost}</p>
             </div>
           ))}
         </div>
