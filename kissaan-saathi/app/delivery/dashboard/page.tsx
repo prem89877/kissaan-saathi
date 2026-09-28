@@ -2,9 +2,12 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
 import { createServiceRoleClient } from "@/lib/supabase/serviceRole";
 import DeliveryClaimButton from "@/components/DeliveryClaimButton";
-import OrderStatusButton from "@/components/OrderStatusButton";
+import DeliveryOtpForm from "@/components/DeliveryOtpForm";
+import CollectCodButton from "@/components/CollectCodButton";
+import DeliveryOnlineToggle from "@/components/DeliveryOnlineToggle";
 import GetDirectionsButton from "@/components/GetDirectionsButton";
 import DeliveryLocationShareButton from "@/components/DeliveryLocationShareButton";
+import { getServerTranslator } from "@/lib/i18n/server";
 import Link from "next/link";
 
 type OrderRow = {
@@ -15,8 +18,11 @@ type OrderRow = {
   delivery_partner_earning: number | null;
   status: string;
   delivery_partner_id: string | null;
+  pickup_confirmed_at: string | null;
   farmer_id: string;
   buyer_id: string;
+  payment_method: string;
+  payment_status: string;
   product_listings: { name: string } | { name: string }[] | null;
 };
 
@@ -40,17 +46,18 @@ export default async function DeliveryDashboard() {
   // middleware.ts already verified this user for this exact request — reuse
   // that instead of calling supabase.auth.getUser() again here.
   const userId = await requireUserId();
+  const { t } = getServerTranslator();
 
   // RLS (orders_select_delivery) already limits this to: orders assigned to
   // me, or unassigned orders that are out_for_delivery + delivery_mode
   // 'delivery' — i.e. exactly the two buckets this page needs, nothing more.
   // These two are independent of each other — fetch in parallel instead of
   // one after another.
-  const [{ data: orders }, { data: pendingSettlementOrders }] = await Promise.all([
+  const [{ data: orders }, { data: pendingSettlementOrders }, { data: myStatus }] = await Promise.all([
     supabase
       .from("orders")
       .select(
-        "id, quantity, price_per_kg, delivery_cost, delivery_partner_earning, status, delivery_partner_id, farmer_id, buyer_id, product_listings(name)"
+        "id, quantity, price_per_kg, delivery_cost, delivery_partner_earning, status, delivery_partner_id, pickup_confirmed_at, farmer_id, buyer_id, payment_method, payment_status, product_listings(name)"
       )
       .eq("delivery_mode", "delivery")
       .eq("status", "out_for_delivery")
@@ -62,6 +69,11 @@ export default async function DeliveryDashboard() {
       .eq("delivery_mode", "delivery")
       .in("status", ["delivered", "completed"])
       .is("delivery_settlement_id", null),
+    supabase
+      .from("delivery_partner_status")
+      .select("is_online")
+      .eq("partner_id", userId)
+      .maybeSingle(),
   ]);
 
   const pendingBalance = (pendingSettlementOrders ?? []).reduce(
@@ -128,12 +140,12 @@ export default async function DeliveryDashboard() {
       <div className="card border-field">
         <p className="font-medium text-field">{listingName(order)} · {order.quantity} kg</p>
         <div className="text-sm text-soil/80 mt-2">
-          <p className="font-medium text-soil">Pickup from</p>
+          <p className="font-medium text-soil">{t("delivery.pickupFrom")}</p>
           <p>{farmer?.full_name} {farmer?.phone ? `· ${farmer.phone}` : ""}</p>
           <p className="text-soil/60">{[farmer?.farm_name, farmer?.area, farmer?.address].filter(Boolean).join(", ")}</p>
         </div>
         <div className="text-sm text-soil/80 mt-2">
-          <p className="font-medium text-soil">Deliver to</p>
+          <p className="font-medium text-soil">{t("delivery.deliverTo")}</p>
           <p>{buyer?.business_name} {buyer?.phone ? `· ${buyer.phone}` : ""}</p>
           {deliveryLocation?.delivery_address ? (
             <>
@@ -162,7 +174,14 @@ export default async function DeliveryDashboard() {
           {mine ? (
             <>
               <DeliveryLocationShareButton orderId={order.id} initialActive={activeShareMap.get(order.id) ?? false} userId={userId} />
-              <OrderStatusButton orderId={order.id} targetStatus="delivered" label="Mark delivered" />
+              {order.payment_method === "cod" && order.payment_status === "cod_pending" && (
+                <CollectCodButton orderId={order.id} />
+              )}
+              {order.pickup_confirmed_at ? (
+                <DeliveryOtpForm orderId={order.id} purpose="delivery" />
+              ) : (
+                <DeliveryOtpForm orderId={order.id} purpose="pickup" />
+              )}
             </>
           ) : (
             <DeliveryClaimButton orderId={order.id} />
@@ -174,10 +193,12 @@ export default async function DeliveryDashboard() {
 
   return (
     <div className="flex flex-col gap-6 pb-10">
-      <h1 className="font-display text-2xl text-field">Dashboard</h1>
+      <h1 className="font-display text-2xl text-field">{t("delivery.dashboardTitle")}</h1>
+
+      <DeliveryOnlineToggle userId={userId} initialOnline={myStatus?.is_online ?? false} />
 
       <Link href="/delivery/earnings" className="card border-field block">
-        <p className="text-sm text-soil/70">Pending settlement balance</p>
+        <p className="text-sm text-soil/70">{t("deliveryEarnings.pendingTitle")}</p>
         <p className="text-2xl font-display text-field">₹{pendingBalance.toFixed(2)}</p>
         <p className="text-soil/50 text-xs mt-1">Paid every Sunday via UPI · tap to view history</p>
       </Link>
@@ -185,7 +206,7 @@ export default async function DeliveryDashboard() {
       <section>
         <h2 className="font-medium text-field mb-3">My active delivery ({myDelivery.length})</h2>
         {myDelivery.length === 0 ? (
-          <p className="text-soil/60 text-sm">You haven't accepted a delivery yet.</p>
+          <p className="text-soil/60 text-sm">{t("delivery.noAcceptedYet")}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {myDelivery.map((o) => <OrderCard key={o.id} order={o} mine />)}
@@ -196,7 +217,7 @@ export default async function DeliveryDashboard() {
       <section>
         <h2 className="font-medium text-field mb-3">Available for pickup ({available.length})</h2>
         {available.length === 0 ? (
-          <p className="text-soil/60 text-sm">No orders waiting for pickup right now.</p>
+          <p className="text-soil/60 text-sm">{t("delivery.noOrdersAvailable")}</p>
         ) : (
           <div className="flex flex-col gap-3">
             {available.map((o) => <OrderCard key={o.id} order={o} mine={false} />)}

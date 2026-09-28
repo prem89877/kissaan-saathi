@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
 import OrderStatusButton from "@/components/OrderStatusButton";
 import DisputeButton from "@/components/DisputeButton";
+import OtpDisplayCard from "@/components/OtpDisplayCard";
 import PaymentButton from "@/components/PaymentButton";
 import GetDirectionsButton from "@/components/GetDirectionsButton";
 import BuyerDeliveryLocationForm from "@/components/BuyerDeliveryLocationForm";
@@ -61,7 +62,7 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
     .eq("id", params.id)
     .single();
   
-  if (!order) return <p className="text-soil/70">Order not found.</p>;
+  if (!order) return <p className="text-soil/70">{t("common.orderNotFound")}</p>;
   
   const { data: buyerProfile } = await supabase
     .from("profiles")
@@ -86,6 +87,30 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
     .eq("order_id", order.id)
     .order("created_at", { ascending: false })
     .limit(1)
+    .maybeSingle();
+
+  // Source of truth for the 6-hour complaint window (see
+  // 16_dispute_six_hour_window.sql, which enforces this server-side
+  // regardless of what we show here — this query is only so the button can
+  // tell the buyer their window has closed instead of letting them submit
+  // and then hit a confusing database error).
+  const { data: deliveredHistoryRow } = await supabase
+    .from("order_status_history")
+    .select("created_at")
+    .eq("order_id", order.id)
+    .eq("status", "delivered")
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  // The buyer's own delivery OTP (RLS scopes this to purpose='delivery' AND
+  // this buyer's own order — see 17_delivery_otp.sql). Only meaningful for
+  // delivery_mode = 'delivery' orders; harmless empty result otherwise.
+  const { data: deliveryOtp } = await supabase
+    .from("order_otps")
+    .select("code, expires_at, verified_at")
+    .eq("order_id", order.id)
+    .eq("purpose", "delivery")
     .maybeSingle();
   
   // Defense in depth: even though RLS (09_farmer_pickup_location.sql) is the
@@ -159,7 +184,7 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
       </div>
 
       <section className="card border-field">
-        <h2 className="font-medium text-field mb-3">Order breakdown</h2>
+        <h2 className="font-medium text-field mb-3">{t("buyerOrder.orderBreakdown")}</h2>
         <div className="flex flex-col gap-1 text-soil/90">
           <div className="flex justify-between"><span>{order.quantity} kg @ ₹{order.price_per_kg}/kg</span><span>₹{order.product_subtotal}</span></div>
           <div className="flex justify-between">
@@ -168,7 +193,7 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
           </div>
           <div className="flex justify-between"><span>Buyer platform fee (5%)</span><span>₹{order.buyer_fee}</span></div>
           <div className="flex justify-between font-medium text-field border-t border-soil/10 pt-2 mt-1">
-            <span>Total payable</span><span>₹{order.buyer_total}</span>
+            <span>{t("common.totalPayable")}</span><span>₹{order.buyer_total}</span>
           </div>
         </div>
       </section>
@@ -250,7 +275,7 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
       )}
 
       {order.status === "accepted_by_seller" && (
-        <p className="text-soil/70 text-sm">Farmer has accepted your order and will begin packing shortly.</p>
+        <p className="text-soil/70 text-sm">{t("buyerOrder.farmerAcceptedMsg")}</p>
       )}
 
       {order.status === "packing" && (
@@ -267,18 +292,22 @@ export default async function BuyerOrderDetailPage({ params }: { params: { id: s
         </p>
       )}
 
-      {order.status === "out_for_delivery" && (
+      {order.status === "out_for_delivery" && order.delivery_mode === "pickup" && (
         <OrderStatusButton
           orderId={order.id}
           targetStatus="delivered"
-          label={order.delivery_mode === "pickup" ? "Mark as picked up" : "Mark as delivered"}
+          label="Mark as picked up"
         />
+      )}
+
+      {order.status === "out_for_delivery" && order.delivery_mode === "delivery" && (
+        <OtpDisplayCard purpose="delivery" otp={deliveryOtp} t={t} />
       )}
 
       {order.status === "delivered" && (
         <div className="flex flex-col gap-2">
           <OrderStatusButton orderId={order.id} targetStatus="completed" label="Confirm receipt — mark completed" />
-          <DisputeButton orderId={order.id} />
+          <DisputeButton orderId={order.id} deliveredAt={deliveredHistoryRow?.created_at ?? null} />
         </div>
       )}
 

@@ -6,12 +6,27 @@ export default async function AdminSettlementsPage() {
 
   const { data: eligibleOrders } = await supabase
     .from("orders")
-    .select("farmer_id, product_subtotal, seller_fee, seller_payout")
+    .select("farmer_id, product_subtotal, seller_fee, seller_payout, payment_method, cod_cash_deposits(status)")
     .in("status", ["delivered", "completed"])
-    .is("settlement_id", null);
+    .is("settlement_id", null)
+    // Orders already claimed by a pending withdrawal/auto-settlement
+    // request (see 19_farmer_withdrawal_and_auto_settlement.sql) are
+    // handled through /admin/payout-requests instead — excluding them
+    // here prevents this older bulk "Mark as Paid" flow from also trying
+    // to settle the same orders.
+    .is("payout_request_id", null);
 
   const byFarmer = new Map<string, { count: number; gross: number; fee: number; net: number }>();
   for (const o of eligibleOrders ?? []) {
+    // COD cash must be deposited AND confirmed by Admin before it counts
+    // toward a farmer's payable balance — see
+    // 22_link_cod_deposit_to_farmer_settlement.sql.
+    if (o.payment_method === "cod") {
+      const depositStatus = Array.isArray(o.cod_cash_deposits)
+        ? o.cod_cash_deposits[0]?.status
+        : (o.cod_cash_deposits as any)?.status;
+      if (depositStatus !== "confirmed") continue;
+    }
     const entry = byFarmer.get(o.farmer_id) ?? { count: 0, gross: 0, fee: 0, net: 0 };
     entry.count += 1;
     entry.gross += Number(o.product_subtotal);

@@ -64,8 +64,13 @@ export default async function AdminDeliverySettlementDetailPage({
         </div>
       </section>
 
-      {net > 0 ? (
+      {net >= 500 ? (
         <DeliverySettlementForm deliveryPartnerId={params.deliveryPartnerId} suggestedAmount={net} />
+      ) : net > 0 ? (
+        <p className="text-soil/70">
+          Below the ₹500 minimum payout — this balance carries over and will be included in a future week once it
+          reaches ₹500.
+        </p>
       ) : (
         <p className="text-soil/70">Nothing pending for this delivery partner.</p>
       )}

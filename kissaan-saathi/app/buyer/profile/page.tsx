@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
+import EmailNotificationToggle from "@/components/EmailNotificationToggle";
 
 export default async function BuyerProfilePage() {
   const supabase = createClient();
@@ -8,7 +9,7 @@ export default async function BuyerProfilePage() {
   const userId = await requireUserId();
   // Independent of each other — fetch in parallel.
   const [{ data: profile }, { data: buyer }] = await Promise.all([
-    supabase.from("profiles").select("full_name, phone, email").eq("id", userId).single(),
+    supabase.from("profiles").select("full_name, phone, email, email_notifications_enabled").eq("id", userId).single(),
     supabase.from("buyer_profiles").select("business_name, business_type, address").eq("user_id", userId).single(),
   ]);
 
@@ -22,6 +23,9 @@ export default async function BuyerProfilePage() {
         <p><span className="text-soil/60">Business:</span> {buyer?.business_name}</p>
         <p><span className="text-soil/60">Type:</span> {buyer?.business_type}</p>
         <p><span className="text-soil/60">Address:</span> {buyer?.address}</p>
+      </div>
+      <div className="card mt-4">
+        <EmailNotificationToggle initialEnabled={profile?.email_notifications_enabled ?? true} />
       </div>
     </div>
   );

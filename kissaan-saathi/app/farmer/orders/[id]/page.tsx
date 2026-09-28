@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import OrderStatusButton from "@/components/OrderStatusButton";
+import ReadyForPickupButton from "@/components/ReadyForPickupButton";
+import OtpDisplayCard from "@/components/OtpDisplayCard";
 import PackingEvidenceUploader from "@/components/PackingEvidenceUploader";
 import CodCollectButton from "@/components/CodCollectButton";
+import { getServerTranslator } from "@/lib/i18n/server";
 import Link from "next/link";
 
 const STATUS_LABEL: Record<string, string> = {
@@ -36,16 +39,17 @@ const PHOTO_VISIBLE_STATUSES = ["packing", "packed", "out_for_delivery", "delive
 
 export default async function FarmerOrderDetailPage({ params }: { params: { id: string } }) {
   const supabase = createClient();
+  const { t } = getServerTranslator();
 
   const { data: order } = await supabase
     .from("orders")
     .select(
-      "id, quantity, price_per_kg, product_subtotal, seller_fee, seller_payout, status, buyer_id, listing_id, delivery_mode, payment_method, payment_status, product_listings(name)"
+      "id, quantity, price_per_kg, product_subtotal, seller_fee, seller_payout, status, buyer_id, listing_id, delivery_mode, delivery_partner_id, payment_method, payment_status, product_listings(name)"
     )
     .eq("id", params.id)
     .single();
 
-  if (!order) return <p className="text-soil/70">Order not found.</p>;
+  if (!order) return <p className="text-soil/70">{t("common.orderNotFound")}</p>;
 
   const { data: buyerProfile } = await supabase
     .from("buyer_profiles")
@@ -64,6 +68,16 @@ export default async function FarmerOrderDetailPage({ params }: { params: { id: 
     .eq("order_id", order.id)
     .order("created_at", { ascending: false })
     .limit(1)
+    .maybeSingle();
+
+  // The farmer's own pickup OTP (RLS scopes this to purpose='pickup' AND
+  // this farmer's own order — see 17_delivery_otp.sql). Only meaningful for
+  // delivery_mode = 'delivery' orders; harmless empty result otherwise.
+  const { data: pickupOtp } = await supabase
+    .from("order_otps")
+    .select("code, expires_at, verified_at")
+    .eq("order_id", order.id)
+    .eq("purpose", "pickup")
     .maybeSingle();
 
   const photoUrls = PHOTO_VISIBLE_STATUSES.includes(order.status)
@@ -115,17 +129,17 @@ export default async function FarmerOrderDetailPage({ params }: { params: { id: 
             </Link>
           </p>
         ) : (
-          <p className="text-soil/60 text-sm mt-1">Kissaan Saathi Delivery handles this order's delivery.</p>
+          <p className="text-soil/60 text-sm mt-1">{t("farmerOrder.deliveryHandledByPlatform")}</p>
         )}
       </div>
 
       <section className="card border-field">
-        <h2 className="font-medium text-field mb-3">Your payout breakdown</h2>
+        <h2 className="font-medium text-field mb-3">{t("farmerOrder.payoutBreakdown")}</h2>
         <div className="flex flex-col gap-1 text-soil/90">
           <div className="flex justify-between"><span>{order.quantity} kg @ ₹{order.price_per_kg}/kg</span><span>₹{order.product_subtotal}</span></div>
-          <div className="flex justify-between"><span>Seller platform fee</span><span>− ₹{order.seller_fee}</span></div>
+          <div className="flex justify-between"><span>{t("common.sellerPlatformFee")}</span><span>− ₹{order.seller_fee}</span></div>
           <div className="flex justify-between font-medium text-field border-t border-soil/10 pt-2 mt-1">
-            <span>You receive</span><span>₹{order.seller_payout}</span>
+            <span>{t("common.youReceive")}</span><span>₹{order.seller_payout}</span>
           </div>
         </div>
       </section>
@@ -143,28 +157,38 @@ export default async function FarmerOrderDetailPage({ params }: { params: { id: 
 
       {order.status === "packing" && (
         <section>
-          <h2 className="font-medium text-field mb-3">Packing evidence</h2>
+          <h2 className="font-medium text-field mb-3">{t("farmerOrder.packingEvidence")}</h2>
           <PackingEvidenceUploader orderId={order.id} existingCount={evidenceRows?.length ?? 0} />
         </section>
       )}
 
-      {order.status === "packed" && (
+      {order.status === "packed" && order.delivery_mode === "pickup" && (
         <OrderStatusButton
           orderId={order.id}
           targetStatus="out_for_delivery"
-          label={order.delivery_mode === "pickup" ? "Mark ready for pickup" : "Ready for Pickup (notify delivery partner)"}
+          label="Mark ready for pickup"
         />
       )}
 
+      {order.status === "packed" && order.delivery_mode === "delivery" && (
+        <ReadyForPickupButton orderId={order.id} />
+      )}
+
       {order.status === "out_for_delivery" && (
-        <p className="text-soil/70 text-sm">
-          {order.delivery_mode === "pickup"
-            ? "Waiting for the buyer to come collect and confirm pickup."
-            : "Visible to Kissaan Saathi delivery partners now — waiting for one to accept and pick it up."}
-        </p>
+        <>
+          <p className="text-soil/70 text-sm">
+            {order.delivery_mode === "pickup"
+              ? "Waiting for the buyer to come collect and confirm pickup."
+              : order.delivery_partner_id
+              ? "A delivery partner has been assigned — waiting for them to arrive and confirm pickup."
+              : "Visible to Kissaan Saathi delivery partners now — waiting for one to accept and pick it up."}
+          </p>
+          {order.delivery_mode === "delivery" && <OtpDisplayCard purpose="pickup" otp={pickupOtp} t={t} />}
+        </>
       )}
 
       {order.payment_method === "cod" && order.payment_status === "cod_pending" &&
+        order.delivery_mode === "pickup" &&
         ["out_for_delivery", "delivered", "completed"].includes(order.status) && (
           <CodCollectButton orderId={order.id} />
         )}

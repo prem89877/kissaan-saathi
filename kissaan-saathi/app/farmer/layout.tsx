@@ -4,6 +4,7 @@ import SignOutButton from "@/components/SignOutButton";
 import BottomNav from "@/components/BottomNav";
 import LanguageToggle from "@/components/LanguageToggle";
 import NotificationProvider from "@/components/notifications/NotificationProvider";
+import PushPermissionPrompt from "@/components/PushPermissionPrompt";
 import NotificationBell from "@/components/notifications/NotificationBell";
 import { getServerTranslator } from "@/lib/i18n/server";
 
@@ -40,7 +41,10 @@ export default async function FarmerLayout({ children }: { children: React.React
           <SignOutButton className="text-sm text-sand/80 underline">{t("common.logOut")}</SignOutButton>
         </div>
       </header>
-      <main className="px-6 py-6">{children}</main>
+      <main className="px-6 py-6 flex flex-col gap-4">
+        <PushPermissionPrompt userId={userId} />
+        {children}
+      </main>
       <BottomNav items={NAV_ITEMS} />
     </div>
   );

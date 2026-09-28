@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
 import DeliveryUpiForm from "@/components/DeliveryUpiForm";
+import EmailNotificationToggle from "@/components/EmailNotificationToggle";
 import Link from "next/link";
 
 export default async function DeliveryProfilePage() {
@@ -11,7 +12,7 @@ export default async function DeliveryProfilePage() {
 
   // Independent of each other — fetch in parallel.
   const [{ data: profile }, { data: deliveryProfile }] = await Promise.all([
-    supabase.from("profiles").select("full_name, phone, email").eq("id", userId).single(),
+    supabase.from("profiles").select("full_name, phone, email, email_notifications_enabled").eq("id", userId).single(),
     supabase.from("delivery_profiles").select("upi_id, upi_holder_name").eq("user_id", userId).maybeSingle(),
   ]);
 
@@ -23,6 +24,9 @@ export default async function DeliveryProfilePage() {
           <p><span className="text-soil/60">Name:</span> {profile?.full_name}</p>
           <p><span className="text-soil/60">Phone:</span> {profile?.phone}</p>
           <p><span className="text-soil/60">Email:</span> {profile?.email}</p>
+        </div>
+        <div className="card mt-4">
+          <EmailNotificationToggle initialEnabled={profile?.email_notifications_enabled ?? true} />
         </div>
       </div>
 

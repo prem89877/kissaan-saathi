@@ -23,6 +23,10 @@ export default async function AdminDeliverySettlementsPage() {
     byPartner.set(id, entry);
   }
 
+  const MIN_PAYOUT = 500;
+  const payableEntries = Array.from(byPartner.entries()).filter(([, agg]) => agg.net >= MIN_PAYOUT);
+  const belowMinimumEntries = Array.from(byPartner.entries()).filter(([, agg]) => agg.net < MIN_PAYOUT);
+
   const partnerIds = Array.from(byPartner.keys());
   const [{ data: profiles }, { data: deliveryProfiles }] = await Promise.all([
     partnerIds.length
@@ -56,12 +60,12 @@ export default async function AdminDeliverySettlementsPage() {
           <h1 className="font-display text-2xl text-field">Delivery Settlements</h1>
           <Link href="/admin/settlements" className="text-field underline text-sm">Farmer settlements →</Link>
         </div>
-        <p className="text-soil/60 text-sm mb-4">Paid out weekly, every Sunday, via UPI.</p>
+        <p className="text-soil/60 text-sm mb-4">Paid out weekly, every Sunday, via UPI — ₹500 minimum per payout.</p>
 
-        {byPartner.size === 0 && <p className="text-soil/70">No pending settlements right now.</p>}
+        {payableEntries.length === 0 && <p className="text-soil/70">No pending settlements at or above ₹500 right now.</p>}
 
         <div className="flex flex-col gap-3">
-          {Array.from(byPartner.entries()).map(([partnerId, agg]) => (
+          {payableEntries.map(([partnerId, agg]) => (
             <Link key={partnerId} href={`/admin/delivery-settlements/${partnerId}`} className="card block">
               <div className="flex justify-between items-start">
                 <p className="font-medium text-soil">{nameById.get(partnerId) ?? "Delivery Partner"}</p>
@@ -75,6 +79,24 @@ export default async function AdminDeliverySettlementsPage() {
             </Link>
           ))}
         </div>
+
+        {belowMinimumEntries.length > 0 && (
+          <div className="mt-6">
+            <h3 className="font-medium text-soil/70 text-sm mb-2">
+              Below ₹500 minimum — carries over to next week ({belowMinimumEntries.length})
+            </h3>
+            <div className="flex flex-col gap-2">
+              {belowMinimumEntries.map(([partnerId, agg]) => (
+                <div key={partnerId} className="card opacity-70">
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm text-soil">{nameById.get(partnerId) ?? "Delivery Partner"}</p>
+                    <p className="text-sm text-soil/70">₹{agg.net.toFixed(2)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <div>

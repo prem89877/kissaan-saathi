@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { requireUserId } from "@/lib/auth/session";
 import FarmerUpiForm from "@/components/FarmerUpiForm";
+import EmailNotificationToggle from "@/components/EmailNotificationToggle";
 import Link from "next/link";
 
 export default async function FarmerProfilePage() {
@@ -10,7 +11,7 @@ export default async function FarmerProfilePage() {
   const userId = await requireUserId();
   // Independent of each other — fetch in parallel.
   const [{ data: profile }, { data: farmer }] = await Promise.all([
-    supabase.from("profiles").select("full_name, phone, email").eq("id", userId).single(),
+    supabase.from("profiles").select("full_name, phone, email, email_notifications_enabled").eq("id", userId).single(),
     supabase
       .from("farmer_profiles")
       .select("farm_name, area, address, upi_id, upi_holder_name")
@@ -29,6 +30,9 @@ export default async function FarmerProfilePage() {
           <p><span className="text-soil/60">Farm:</span> {farmer?.farm_name || "—"}</p>
           <p><span className="text-soil/60">Area:</span> {farmer?.area || "—"}</p>
           <p><span className="text-soil/60">Address:</span> {farmer?.address || "—"}</p>
+        </div>
+        <div className="card mt-4">
+          <EmailNotificationToggle initialEnabled={profile?.email_notifications_enabled ?? true} />
         </div>
       </div>
 

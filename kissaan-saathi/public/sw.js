@@ -74,3 +74,41 @@ self.addEventListener("fetch", (event) => {
     );
   }
 });
+
+// --- Web push (Part E) -------------------------------------------------
+// The payload is whatever app/api/push/send-for-notification/route.ts
+// sent: { title, body, link }. Never trust it blindly — this runs even if
+// the payload is malformed, so every field is defaulted.
+self.addEventListener("push", (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    data = {};
+  }
+  const title = data.title || "Kissaan Saathi";
+  const body = data.body || "";
+  const link = data.link || "/";
+
+  event.waitUntil(
+    self.registration.showNotification(title, {
+      body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { link },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const link = event.notification.data?.link || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if (client.url.includes(link) && "focus" in client) return client.focus();
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(link);
+    })
+  );
+});
