@@ -3,15 +3,28 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
+import { useTranslation } from "@/lib/i18n/LanguageProvider";
+import type { TranslationKey } from "@/lib/i18n/dictionary";
 
-const REASONS = [
-  "Wrong product",
-  "Wrong quantity",
-  "Significant quality mismatch",
-  "Damaged produce",
-  "Delivery-related issue",
-  "Other",
+const REASON_KEYS: TranslationKey[] = [
+  "dispute.reasonWrongProduct",
+  "dispute.reasonWrongQuantity",
+  "dispute.reasonQualityMismatch",
+  "dispute.reasonDamaged",
+  "dispute.reasonDeliveryIssue",
+  "dispute.reasonOther",
 ];
+
+// Canonical English value stored in the DB, matching the original
+// hardcoded REASONS list this replaces — unaffected by UI language.
+const CANONICAL_REASON: Record<TranslationKey, string> = {
+  "dispute.reasonWrongProduct": "Wrong product",
+  "dispute.reasonWrongQuantity": "Wrong quantity",
+  "dispute.reasonQualityMismatch": "Significant quality mismatch",
+  "dispute.reasonDamaged": "Damaged produce",
+  "dispute.reasonDeliveryIssue": "Delivery-related issue",
+  "dispute.reasonOther": "Other",
+} as Record<TranslationKey, string>;
 
 async function fileHash(file: File): Promise<string> {
   const buffer = await file.arrayBuffer();
@@ -21,7 +34,8 @@ async function fileHash(file: File): Promise<string> {
 
 export default function DisputeForm({ orderId, onCancel }: { orderId: string; onCancel: () => void }) {
   const router = useRouter();
-  const [reason, setReason] = useState(REASONS[0]);
+  const { t } = useTranslation();
+  const [reasonKey, setReasonKey] = useState<TranslationKey>(REASON_KEYS[0]);
   const [description, setDescription] = useState("");
   const [photos, setPhotos] = useState<File[]>([]);
   const [submitting, setSubmitting] = useState(false);
@@ -36,7 +50,7 @@ export default function DisputeForm({ orderId, onCancel }: { orderId: string; on
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!description.trim()) {
-      setError("Please describe what went wrong.");
+      setError(t("dispute.describeRequired"));
       return;
     }
     setSubmitting(true);
@@ -44,12 +58,16 @@ export default function DisputeForm({ orderId, onCancel }: { orderId: string; on
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
 
+    // Stored value stays the canonical English label regardless of UI
+    // language — this matches what admin tooling and any existing DB
+    // constraint on this column already expect. Only the label shown to the
+    // buyer is translated.
     const { data: dispute, error: disputeError } = await supabase
       .from("disputes")
       .insert({
         order_id: orderId,
         buyer_id: user!.id,
-        reason,
+        reason: CANONICAL_REASON[reasonKey],
         description: description.trim(),
         status: "open",
       })
@@ -57,7 +75,10 @@ export default function DisputeForm({ orderId, onCancel }: { orderId: string; on
       .single();
 
     if (disputeError || !dispute) {
-      setError("Could not submit dispute: " + (disputeError?.message ?? "unknown error"));
+      // The 6-hour window trigger (16_dispute_six_hour_window.sql) rejects
+      // late inserts with a plain-language Postgres exception — surface that
+      // message as-is since it's already meant for the buyer to read.
+      setError(disputeError?.message || t("dispute.submitFailed"));
       setSubmitting(false);
       return;
     }
@@ -76,7 +97,7 @@ export default function DisputeForm({ orderId, onCancel }: { orderId: string; on
     // 'delivered', enforced by the enforce_order_transition trigger.
     const { error: statusError } = await supabase.from("orders").update({ status: "disputed" }).eq("id", orderId);
     if (statusError) {
-      setError("Dispute recorded, but order status couldn't be updated: " + statusError.message);
+      setError(t("dispute.statusUpdateFailed") + ": " + statusError.message);
       setSubmitting(false);
       return;
     }
@@ -87,39 +108,45 @@ export default function DisputeForm({ orderId, onCancel }: { orderId: string; on
 
   return (
     <form onSubmit={handleSubmit} className="card border-alert flex flex-col gap-3">
-      <h2 className="font-medium text-alert">Report a problem</h2>
+      <h2 className="font-medium text-alert">{t("dispute.reportProblem")}</h2>
 
       {error && <p className="text-alert text-sm">{error}</p>}
 
       <label className="text-sm text-soil/70">
-        Reason
-        <select className="input-field mt-1" value={reason} onChange={(e) => setReason(e.target.value)}>
-          {REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+        {t("dispute.reasonLabel")}
+        <select
+          className="input-field mt-1"
+          value={reasonKey}
+          onChange={(e) => setReasonKey(e.target.value as TranslationKey)}
+        >
+          {REASON_KEYS.map((key) => (
+            <option key={key} value={key}>{t(key)}</option>
+          ))}
         </select>
       </label>
 
       <label className="text-sm text-soil/70">
-        Describe what happened
+        {t("dispute.describeLabel")}
         <textarea className="input-field mt-1 min-h-[80px]" value={description} onChange={(e) => setDescription(e.target.value)} />
       </label>
 
       <div className="grid grid-cols-2 gap-2">
         <label className="btn-secondary text-center cursor-pointer">
-          Take photo
+          {t("dispute.takePhoto")}
           <input type="file" accept="image/*" capture="environment" className="hidden" onChange={handlePhotoSelect} />
         </label>
         <label className="btn-secondary text-center cursor-pointer">
-          Choose from gallery
+          {t("dispute.chooseFromGallery")}
           <input type="file" accept="image/*" multiple className="hidden" onChange={handlePhotoSelect} />
         </label>
       </div>
-      {photos.length > 0 && <p className="text-soil/60 text-sm">{photos.length} photo(s) attached</p>}
+      {photos.length > 0 && <p className="text-soil/60 text-sm">{photos.length} {t("dispute.photosAttached")}</p>}
 
       <div className="flex gap-2">
         <button type="submit" disabled={submitting} className="btn-primary flex-1">
-          {submitting ? "Submitting…" : "Submit dispute"}
+          {submitting ? t("dispute.submitting") : t("dispute.submit")}
         </button>
-        <button type="button" onClick={onCancel} className="btn-secondary flex-1">Cancel</button>
+        <button type="button" onClick={onCancel} className="btn-secondary flex-1">{t("common.cancel")}</button>
       </div>
     </form>
   );

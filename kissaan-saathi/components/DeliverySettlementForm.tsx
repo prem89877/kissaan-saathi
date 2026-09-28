@@ -4,6 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 
+const MIN_PAYOUT = 500;
+
 export default function DeliverySettlementForm({
   deliveryPartnerId,
   suggestedAmount,
@@ -25,6 +27,10 @@ export default function DeliverySettlementForm({
     const amount = parseFloat(amountPaid);
     if (!(amount > 0)) {
       setError("Amount paid must be a positive number.");
+      return;
+    }
+    if (amount < MIN_PAYOUT) {
+      setError(`Minimum payout is ₹${MIN_PAYOUT}. This partner's balance carries over to next week instead.`);
       return;
     }
     if (!utr.trim()) {
