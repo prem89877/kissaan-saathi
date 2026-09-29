@@ -105,10 +105,15 @@ export default function ChatThread({
       if (acceptedOffer) {
         const { data: order } = await supabase
           .from("orders")
-          .select("id")
+          .select("id, status")
           .eq("offer_id", acceptedOffer.id)
           .maybeSingle();
-        setExistingOrderId(order?.id ?? null);
+        // A cancelled order for this offer shouldn't keep pointing the
+        // buyer/farmer at a dead end forever — treat it the same as "no
+        // order yet" so the buyer can place a fresh order against the same
+        // accepted offer (see also 26_reorder_after_cancelled_order.sql,
+        // which allows the DB to accept that second order for this offer).
+        setExistingOrderId(order && order.status !== "cancelled" ? order.id : null);
       }
 
       // Live updates so both sides see new messages/offers without refreshing.
