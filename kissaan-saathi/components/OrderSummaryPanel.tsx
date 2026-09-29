@@ -68,10 +68,15 @@ export default function OrderSummaryPanel({ conversationId }: { conversationId: 
       if (acceptedOffer) {
         const { data: order } = await supabase
           .from("orders")
-          .select("id")
+          .select("id, status")
           .eq("offer_id", acceptedOffer.id)
           .maybeSingle();
-        setExistingOrderId(order?.id ?? null);
+        // A cancelled order for this offer must not keep force-redirecting
+        // the buyer here forever — this is exactly the bug reported: tapping
+        // the product again after cancelling always landed back on this same
+        // dead order summary. Treat a cancelled order as "no order yet" so
+        // the create-order form below renders instead.
+        setExistingOrderId(order && order.status !== "cancelled" ? order.id : null);
       }
 
       // Live updates: as soon as the farmer accepts (or counters) the offer

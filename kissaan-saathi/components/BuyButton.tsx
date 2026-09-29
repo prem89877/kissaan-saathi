@@ -77,7 +77,11 @@ export default function BuyButton({
         .eq("offer_id", latestOffer.id)
         .maybeSingle();
       
-      if (latestOrder && (latestOrder.status === "delivered" || latestOrder.status === "completed")) {
+      // Bug fix: a CANCELLED order also means this purchase cycle is over —
+      // previously only delivered/completed counted, so tapping Buy after
+      // cancelling silently did nothing new and just redirected back to the
+      // dead cancelled order (via OrderSummaryPanel).
+      if (latestOrder && (latestOrder.status === "delivered" || latestOrder.status === "completed" || latestOrder.status === "cancelled")) {
         needsNewOffer = true;
       }
     }
